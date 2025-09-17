@@ -2,14 +2,15 @@
 // Define axum routes here
 
 use axum::Router;
-use sqlx::SqlitePool;
 
 mod execution;
 mod result;
 mod stream;
 mod utils;
 
-pub fn routes() -> Router<SqlitePool> {
+use crate::models::AppState;
+
+pub fn routes() -> Router<AppState> {
     Router::new()
         .merge(execution::routes())
         .merge(result::routes())

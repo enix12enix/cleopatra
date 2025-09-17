@@ -8,22 +8,21 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use sqlx::SqlitePool;
 
-use crate::models::{TestResult, CreateTestResult};
+use crate::models::{AppState, TestResult, CreateTestResult};
 use crate::routes::utils::upsert_test_result;
 
-pub fn routes() -> Router<SqlitePool> {
+pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/api/result", post(create_test_result))
         .route("/api/result/:id", get(get_test_result))
 }
 
 async fn create_test_result(
-    State(pool): State<SqlitePool>,
+    State(state): State<AppState>,
     Json(payload): Json<CreateTestResult>,
 ) -> Result<(StatusCode, Json<TestResult>), (StatusCode, String)> {
-    let mut conn = pool.acquire().await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let mut conn = state.pool.acquire().await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     
     let test_result = upsert_test_result(
         &mut *conn,
@@ -46,9 +45,9 @@ async fn create_test_result(
 
 async fn get_test_result(
     Path(id): Path<i64>,
-    State(pool): State<SqlitePool>,
+    State(state): State<AppState>,
 ) -> Result<Json<TestResult>, (StatusCode, String)> {
-    let mut conn = pool.acquire().await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let mut conn = state.pool.acquire().await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     
     let test_result = sqlx::query_as::<_, TestResult>(
         "SELECT * FROM test_result WHERE id = ?"

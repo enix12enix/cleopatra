@@ -2,7 +2,7 @@
 // Define models here
 
 use serde::{Deserialize, Serialize};
-use sqlx::FromRow;
+use sqlx::{FromRow, SqlitePool};
 
 #[derive(Debug, Serialize, Deserialize, FromRow)]
 pub struct Execution {
@@ -95,4 +95,10 @@ pub struct FailedItem {
     pub test_name: String,
     pub error: String,
     pub raw_payload: serde_json::Value,
+}
+
+/// Application state that holds shared resources
+#[derive(Clone)]
+pub struct AppState {
+    pub pool: SqlitePool,
 }

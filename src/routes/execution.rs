@@ -8,12 +8,11 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use sqlx::SqlitePool;
 use std::collections::HashMap;
 
-use crate::models::{Execution, CreateExecution, ExecutionListResponse, ExecutionResultsResponse};
+use crate::models::{AppState, Execution, CreateExecution, ExecutionListResponse, ExecutionResultsResponse};
 
-pub fn routes() -> Router<SqlitePool> {
+pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/api/execution", post(create_execution))
         .route("/api/executions", get(get_executions))
@@ -21,10 +20,10 @@ pub fn routes() -> Router<SqlitePool> {
 }
 
 async fn create_execution(
-    State(pool): State<SqlitePool>,
+    State(state): State<AppState>,
     Json(payload): Json<CreateExecution>,
 ) -> Result<(StatusCode, Json<Execution>), (StatusCode, String)> {
-    let mut conn = pool.acquire().await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let mut conn = state.pool.acquire().await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     
     let execution = sqlx::query_as::<_, Execution>(
         "INSERT INTO execution (name, tag, created_by, time_created) VALUES (?, ?, ?, ?) RETURNING *"
@@ -41,10 +40,10 @@ async fn create_execution(
 }
 
 async fn get_executions(
-    State(pool): State<SqlitePool>,
+    State(state): State<AppState>,
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<Json<ExecutionListResponse>, (StatusCode, String)> {
-    let mut conn = pool.acquire().await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let mut conn = state.pool.acquire().await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     
     let limit: i64 = params.get("limit").and_then(|s| s.parse().ok()).unwrap_or(20).min(100);
     let offset: i64 = params.get("offset").and_then(|s| s.parse().ok()).unwrap_or(0);
@@ -104,7 +103,7 @@ async fn get_executions(
 
 async fn get_execution_results(
     Path(_id): Path<i64>,
-    State(_pool): State<SqlitePool>,
+    State(_state): State<AppState>,
     Query(_params): Query<HashMap<String, String>>,
 ) -> Result<Json<ExecutionResultsResponse>, (StatusCode, String)> {
     // Implementation will be added later

@@ -11,22 +11,21 @@ use axum::{
 use axum::body::Body;
 use futures::{StreamExt, TryStreamExt};
 use futures::AsyncBufReadExt;
-use sqlx::SqlitePool;
 
-use crate::models::{CreateTestResult, StreamResponse, FailedItem};
+use crate::models::{AppState, CreateTestResult, StreamResponse, FailedItem};
 use crate::routes::utils::upsert_test_result;
 
-pub fn routes() -> Router<SqlitePool> {
+pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/api/executions/:execution_id/results:stream", post(stream_test_results))
 }
 
 async fn stream_test_results(
     Path(execution_id): Path<i64>,
-    State(pool): State<SqlitePool>,
+    State(state): State<AppState>,
     body: Body,
 ) -> Result<Json<StreamResponse>, (StatusCode, String)> {
-    let mut conn = pool.acquire().await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let mut conn = state.pool.acquire().await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     
     // Convert Body to a stream of JSON values
     let stream = body
