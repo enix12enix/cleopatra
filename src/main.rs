@@ -6,11 +6,15 @@ use tokio;
 mod db;
 mod models;
 mod routes;
+mod config;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Load configuration
+    let config = config::Config::from_env()?;
+
     // Initialize the database
-    let pool = db::init_db().await?;
+    let pool = db::init_db(&config).await?;
 
     // Build our application by composing routes
     let app = Router::new()
@@ -18,7 +22,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_state(pool.clone());
 
     // Run our application
-    let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+    let addr: SocketAddr = format!("{}:{}", config.server.host, config.server.port).parse()?;
     println!("Listening on {}", addr);
 
     axum::serve(tokio::net::TcpListener::bind(addr).await?, app).await?;

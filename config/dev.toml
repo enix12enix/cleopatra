@@ -1,0 +1,10 @@
+[server]
+host = "127.0.0.1"
+port = 3000
+
+[database]
+url = "sqlite::memory:"
+max_connections = 5
+wal = true
+wal_checkpoint_mode = "PASSIVE"   # PASSIVE, FULL, RESTART, TRUNCATE
+wal_autocheckpoint = 1000
