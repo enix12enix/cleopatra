@@ -12,6 +12,7 @@ use serde::Deserialize;
 use sqlx::SqlitePool;
 
 use crate::models::TestResult;
+use crate::routes::utils::upsert_test_result;
 
 pub fn routes() -> Router<SqlitePool> {
     Router::new()
@@ -25,57 +26,21 @@ async fn create_test_result(
 ) -> Result<(StatusCode, Json<TestResult>), (StatusCode, String)> {
     let mut conn = pool.acquire().await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     
-    // Check if test result already exists
-    let existing_result: Option<TestResult> = sqlx::query_as::<_, TestResult>(
-        "SELECT * FROM test_result WHERE execution_id = ? AND name = ?"
+    let test_result = upsert_test_result(
+        &mut *conn,
+        payload.execution_id,
+        payload.name,
+        payload.platform,
+        payload.description,
+        payload.status,
+        payload.execution_time,
+        payload.log,
+        payload.screenshot_id,
+        payload.created_by,
+        payload.time_created,
     )
-    .bind(payload.execution_id)
-    .bind(&payload.name)
-    .fetch_optional(&mut *conn)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    
-    let test_result = if let Some(mut existing) = existing_result {
-        // Update existing result and increment counter
-        existing.counter += 1;
-        sqlx::query(
-            "UPDATE test_result SET platform = ?, description = ?, status = ?, execution_time = ?, counter = ?, log = ?, screenshot_id = ?, created_by = ?, time_created = ? WHERE id = ?"
-        )
-        .bind(&payload.platform)
-        .bind(&payload.description)
-        .bind(&payload.status)
-        .bind(payload.execution_time)
-        .bind(existing.counter)
-        .bind(&payload.log)
-        .bind(&payload.screenshot_id)
-        .bind(&payload.created_by)
-        .bind(payload.time_created)
-        .bind(existing.id.unwrap())
-        .execute(&mut *conn)
-        .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-        
-        existing
-    } else {
-        // Create new result
-        sqlx::query_as::<_, TestResult>(
-            "INSERT INTO test_result (execution_id, name, platform, description, status, execution_time, counter, log, screenshot_id, created_by, time_created) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *"
-        )
-        .bind(payload.execution_id)
-        .bind(&payload.name)
-        .bind(&payload.platform)
-        .bind(&payload.description)
-        .bind(&payload.status)
-        .bind(payload.execution_time)
-        .bind(1) // counter starts at 1
-        .bind(&payload.log)
-        .bind(&payload.screenshot_id)
-        .bind(&payload.created_by)
-        .bind(payload.time_created)
-        .fetch_one(&mut *conn)
-        .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
-    };
     
     Ok((StatusCode::CREATED, Json(test_result)))
 }

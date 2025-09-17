@@ -14,7 +14,7 @@ use futures::AsyncBufReadExt;
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 
-use crate::models::TestResult;
+use crate::routes::utils::upsert_test_result;
 
 pub fn routes() -> Router<SqlitePool> {
     Router::new()
@@ -64,53 +64,31 @@ async fn stream_test_results(
                             continue;
                         }
                         
-                        // Check if test result already exists
-                        let existing_result: Option<TestResult> = sqlx::query_as::<_, TestResult>(
-                            "SELECT * FROM test_result WHERE execution_id = ? AND name = ?"
-                        )
-                        .bind(execution_id)
-                        .bind(&payload.name)
-                        .fetch_optional(&mut *conn)
-                        .await
-                        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+                        // Clone the values we need before moving them
+                        let name = payload.name.clone();
+                        let platform = payload.platform.clone();
+                        let description = payload.description.clone();
+                        let status = payload.status.clone();
+                        let execution_time = payload.execution_time;
+                        let log = payload.log.clone();
+                        let screenshot_id = payload.screenshot_id;
+                        let created_by = payload.created_by.clone();
+                        let time_created = payload.time_created;
                         
-                        let insert_result = if let Some(mut existing) = existing_result {
-                            // Update existing result and increment counter
-                            existing.counter += 1;
-                            sqlx::query(
-                                "UPDATE test_result SET platform = ?, description = ?, status = ?, execution_time = ?, counter = ?, log = ?, screenshot_id = ?, created_by = ?, time_created = ? WHERE id = ?"
-                            )
-                            .bind(&payload.platform)
-                            .bind(&payload.description)
-                            .bind(&payload.status)
-                            .bind(payload.execution_time)
-                            .bind(existing.counter)
-                            .bind(&payload.log)
-                            .bind(&payload.screenshot_id)
-                            .bind(&payload.created_by)
-                            .bind(payload.time_created)
-                            .bind(existing.id.unwrap())
-                            .execute(&mut *conn)
-                            .await
-                        } else {
-                            // Create new result
-                            sqlx::query(
-                                "INSERT INTO test_result (execution_id, name, platform, description, status, execution_time, counter, log, screenshot_id, created_by, time_created) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-                            )
-                            .bind(execution_id)
-                            .bind(&payload.name)
-                            .bind(&payload.platform)
-                            .bind(&payload.description)
-                            .bind(&payload.status)
-                            .bind(payload.execution_time)
-                            .bind(1) // counter starts at 1
-                            .bind(&payload.log)
-                            .bind(&payload.screenshot_id)
-                            .bind(&payload.created_by)
-                            .bind(payload.time_created)
-                            .execute(&mut *conn)
-                            .await
-                        };
+                        let insert_result = upsert_test_result(
+                            &mut *conn,
+                            execution_id,
+                            name,
+                            platform,
+                            description,
+                            status,
+                            execution_time,
+                            log,
+                            screenshot_id,
+                            created_by,
+                            time_created,
+                        )
+                        .await;
                         
                         match insert_result {
                             Ok(_) => inserted += 1,

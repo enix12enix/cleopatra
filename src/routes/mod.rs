@@ -7,6 +7,7 @@ use sqlx::SqlitePool;
 mod execution;
 mod result;
 mod stream;
+mod utils;
 
 pub fn routes() -> Router<SqlitePool> {
     Router::new()

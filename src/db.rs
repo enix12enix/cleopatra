@@ -1,12 +1,12 @@
 // src/db.rs
 // Initialize database configuration here
 
-use sqlx::{sqlite::SqlitePoolOptions, Result};
+use sqlx::{sqlite::SqlitePool, sqlite::SqlitePoolOptions, Result};
 use crate::config::Config;
 
-pub async fn init_db(config: &Config) -> Result<sqlx::SqlitePool> {
+pub async fn init_db(config: &Config) -> Result<SqlitePool> {
     let pool = SqlitePoolOptions::new()
-        .max_connections(config.database.max_connections)  // <-- configure pool size here
+        .max_connections(config.database.max_connections)
         .connect(&config.database.url)
         .await?;
 
