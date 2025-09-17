@@ -9,6 +9,7 @@ use std::fs;
 pub struct Config {
     pub server: ServerConfig,
     pub database: DatabaseConfig,
+    pub writer: WriterConfig,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -25,6 +26,12 @@ pub struct DatabaseConfig {
     pub wal: bool,
     #[serde(default = "default_wal_autocheckpoint")]
     pub wal_autocheckpoint: i32,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct WriterConfig {
+    pub batch_size: usize,
+    pub flush_interval_ms: u64,
 }
 
 fn default_wal() -> bool {

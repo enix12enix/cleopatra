@@ -3,6 +3,7 @@
 
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, SqlitePool};
+use crate::writer::Writer;
 
 #[derive(Debug, Serialize, Deserialize, FromRow)]
 pub struct Execution {
@@ -101,4 +102,5 @@ pub struct FailedItem {
 #[derive(Clone)]
 pub struct AppState {
     pub pool: SqlitePool,
+    pub writer: Writer,
 }
