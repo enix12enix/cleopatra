@@ -8,10 +8,9 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use serde::Deserialize;
 use sqlx::SqlitePool;
 
-use crate::models::TestResult;
+use crate::models::{TestResult, CreateTestResult};
 use crate::routes::utils::upsert_test_result;
 
 pub fn routes() -> Router<SqlitePool> {
@@ -63,16 +62,3 @@ async fn get_test_result(
     Ok(Json(test_result))
 }
 
-#[derive(Deserialize)]
-struct CreateTestResult {
-    execution_id: i64,
-    name: String,
-    platform: String,
-    description: Option<String>,
-    status: String,
-    execution_time: Option<i64>,
-    log: Option<String>,
-    screenshot_id: Option<i64>,
-    created_by: Option<String>,
-    time_created: i64,
-}

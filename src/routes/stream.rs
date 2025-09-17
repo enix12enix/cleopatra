@@ -11,9 +11,9 @@ use axum::{
 use axum::body::Body;
 use futures::{StreamExt, TryStreamExt};
 use futures::AsyncBufReadExt;
-use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 
+use crate::models::{CreateTestResult, StreamResponse, FailedItem};
 use crate::routes::utils::upsert_test_result;
 
 pub fn routes() -> Router<SqlitePool> {
@@ -151,33 +151,3 @@ async fn stream_test_results(
     Ok(Json(response))
 }
 
-#[derive(Deserialize, Serialize, Clone)]
-struct CreateTestResult {
-    name: String,
-    platform: String,
-    description: Option<String>,
-    status: String,
-    execution_time: Option<i64>,
-    log: Option<String>,
-    screenshot_id: Option<i64>,
-    created_by: Option<String>,
-    time_created: i64,
-}
-
-#[derive(Serialize)]
-struct StreamResponse {
-    status: String,
-    message: String,
-    execution_id: i64,
-    received: i64,
-    inserted: i64,
-    failed: i64,
-    failed_items: Option<Vec<FailedItem>>,
-}
-
-#[derive(Serialize)]
-struct FailedItem {
-    test_name: String,
-    error: String,
-    raw_payload: serde_json::Value,
-}

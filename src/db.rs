@@ -42,24 +42,3 @@ pub async fn init_db(config: &Config) -> Result<SqlitePool> {
 
     Ok(pool)
 }
-
-/// Perform a WAL checkpoint with the specified mode
-/// This function should be called manually when needed based on application requirements
-/// Valid modes: "PASSIVE", "FULL", "RESTART", "TRUNCATE"
-pub async fn perform_checkpoint(pool: &SqlitePool, mode: &str) -> Result<()> {
-    let mode_upper = mode.to_uppercase();
-    let valid_modes = ["PASSIVE", "FULL", "RESTART", "TRUNCATE"];
-    
-    if !valid_modes.contains(&mode_upper.as_str()) {
-        return Err(sqlx::Error::Configuration(
-            format!("Invalid checkpoint mode: {}. Valid modes are: {:?}", mode, valid_modes).into()
-        ).into());
-    }
-    
-    let query = format!("PRAGMA wal_checkpoint({})", mode_upper);
-    sqlx::query(&query)
-        .execute(pool)
-        .await?;
-        
-    Ok(())
-}

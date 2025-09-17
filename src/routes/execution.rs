@@ -8,11 +8,10 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 use std::collections::HashMap;
 
-use crate::models::Execution;
+use crate::models::{Execution, CreateExecution, ExecutionListResponse, ExecutionResultsResponse};
 
 pub fn routes() -> Router<SqlitePool> {
     Router::new()
@@ -112,38 +111,3 @@ async fn get_execution_results(
     Err((StatusCode::NOT_IMPLEMENTED, "Not implemented".to_string()))
 }
 
-#[derive(Deserialize)]
-struct CreateExecution {
-    name: String,
-    tag: Option<String>,
-    created_by: Option<String>,
-    time_created: i64,
-}
-
-#[derive(Serialize)]
-struct ExecutionListResponse {
-    total: i64,
-    limit: i64,
-    offset: i64,
-    has_next: bool,
-    items: Vec<Execution>,
-}
-
-#[derive(Serialize)]
-struct ExecutionResultsResponse {
-    execution_id: i64,
-    summary: Option<Summary>,
-    total: i64,
-    limit: i64,
-    offset: i64,
-    has_next: bool,
-    items: Vec<crate::models::TestResult>,
-}
-
-#[derive(Serialize)]
-struct Summary {
-    total: i64,
-    pass: i64,
-    fail: i64,
-    ignor: i64,
-}
