@@ -6,5 +6,4 @@ port = 3000
 url = "sqlite::memory:"
 max_connections = 5
 wal = true
-wal_checkpoint_mode = "PASSIVE"   # PASSIVE, FULL, RESTART, TRUNCATE
 wal_autocheckpoint = 1000

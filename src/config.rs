@@ -21,6 +21,18 @@ pub struct ServerConfig {
 pub struct DatabaseConfig {
     pub url: String,
     pub max_connections: u32,
+    #[serde(default = "default_wal")]
+    pub wal: bool,
+    #[serde(default = "default_wal_autocheckpoint")]
+    pub wal_autocheckpoint: i32,
+}
+
+fn default_wal() -> bool {
+    true
+}
+
+fn default_wal_autocheckpoint() -> i32 {
+    1000
 }
 
 impl Config {
