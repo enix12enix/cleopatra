@@ -22,4 +22,12 @@ impl TestConfig {
     pub fn get_executions_api_url(&self) -> String {
         format!("{}/api/executions", self.api_base_url)
     }
+    
+    pub fn get_result_api_url(&self) -> String {
+        format!("{}/api/result", self.api_base_url)
+    }
+    
+    pub fn get_result_by_id_api_url(&self, result_id: i64) -> String {
+        format!("{}/api/result/{}", self.api_base_url, result_id)
+    }
 }
