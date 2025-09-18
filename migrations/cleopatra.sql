@@ -26,7 +26,8 @@ CREATE TABLE IF NOT EXISTS test_result (
     log TEXT,
     screenshot_id INTEGER,
     created_by TEXT,
-    time_created INTEGER NOT NULL
+    time_created INTEGER NOT NULL,
+    CONSTRAINT uq_test_result_execution_name UNIQUE (execution_id, name)
 );
 
 -- Indexes for common queries
