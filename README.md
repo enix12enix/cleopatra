@@ -7,15 +7,9 @@
 
 ## Introduction
 
-The backend service built by Rust to test result management - view, report, analysis.
+The backend service for a lightweight test result management that works out of the box.
 
-For this system, my goal was to keep the application as lightweight as possible while ensuring functionality and performance. <br/>
-
-Therefore, I developed it using Rust and Sqlite3. <br/>
-
-Sqlite3 combined with WAL ensures low maintenance costs while improving write performance. This is enough fora team of fewer than 50 engineers. <br/>
-
-Rust's extreme performance low memory requirements, and type safety makes it ideal for streaming, high-concurrency scenarios.
+Strive to balance performance, ease of use, and functionality.
 
 ## Technical Stack
 
@@ -31,15 +25,26 @@ cleopatra/
 ├── Makefile
 ├── migrations/
 │   └── cleopatra.sql
+├── config/
+│   ├── dev.toml
+│   └── prod.toml
 └── src/
     ├── main.rs
-    ├── db.rs  // init db configuration here
-    ├── models.rs // define models
+    ├── config.rs  // configuration handling
+    ├── db.rs      // database initialization
+    ├── models.rs  // data models
+    ├── writer.rs  // background writer for batch processing
     └── routes/
-        ├── mod.rs // define axum routes
-        ├── execution.rs // define restful execution api
-        ├── result.rs // define resrful test result api
-        └── stream.rs // define stream api
+        ├── mod.rs     // route module definitions
+        ├── execution.rs  // execution REST API
+        ├── result.rs     // test result REST API
+        ├── stream.rs     // streaming API
+        └── utils.rs      // utility functions
+└── tests/
+    ├── test_config.toml     // test configuration
+    ├── common/
+    │   └── test_config.rs   // test configuration loader
+    └── execution_api_test.rs  // integration tests
 ```
 
 ## Database Design
