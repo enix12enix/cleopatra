@@ -23,19 +23,9 @@ async fn create_test_result(
     Json(payload): Json<CreateTestResult>,
 ) -> Result<(StatusCode, Json<TestResult>), (StatusCode, String)> {
     let mut conn = state.pool.acquire().await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    
     let test_result = upsert_test_result(
         &mut *conn,
-        payload.execution_id,
-        payload.name,
-        payload.platform,
-        payload.description,
-        payload.status,
-        payload.execution_time,
-        payload.log,
-        payload.screenshot_id,
-        payload.created_by,
-        payload.time_created,
+        &payload,
     )
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;

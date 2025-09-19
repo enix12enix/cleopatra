@@ -30,4 +30,8 @@ impl TestConfig {
     pub fn get_result_by_id_api_url(&self, result_id: i64) -> String {
         format!("{}/api/result/{}", self.api_base_url, result_id)
     }
+    
+    pub fn get_stream_api_url(&self, execution_id: i64) -> String {
+        format!("{}/api/executions/{}/results:stream", self.api_base_url, execution_id)
+    }
 }

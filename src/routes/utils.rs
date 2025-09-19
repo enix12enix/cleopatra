@@ -2,23 +2,14 @@
 // Utility functions for routes
 
 use sqlx::{SqliteConnection, Result as SqlxResult};
-use crate::models::TestResult;
+use crate::models::{TestResult, CreateTestResult};
 
 /// Upsert (insert or update) a test result.
 /// If a test result with the same (execution_id, name) exists, it will be updated and the counter incremented.
 /// Otherwise, a new test result will be created with counter set to 1.
 pub async fn upsert_test_result(
     conn: &mut SqliteConnection,
-    execution_id: i64,
-    name: String,
-    platform: String,
-    description: Option<String>,
-    status: String,
-    execution_time: Option<i64>,
-    log: Option<String>,
-    screenshot_id: Option<i64>,
-    created_by: Option<String>,
-    time_created: i64,
+    payload: &CreateTestResult,
 ) -> SqlxResult<TestResult> {
     let test_result = sqlx::query_as::<_, TestResult>(
         r#"
@@ -38,16 +29,16 @@ pub async fn upsert_test_result(
         RETURNING *
         "#
     )
-    .bind(execution_id)
-    .bind(&name)
-    .bind(&platform)
-    .bind(&description)
-    .bind(&status)
-    .bind(execution_time)
-    .bind(&log)
-    .bind(&screenshot_id)
-    .bind(&created_by)
-    .bind(time_created)
+    .bind(payload.execution_id)
+    .bind(&payload.name)
+    .bind(&payload.platform)
+    .bind(payload.description.as_deref())
+    .bind(&payload.status)
+    .bind(payload.execution_time)
+    .bind(&payload.log)
+    .bind(&payload.screenshot_id)
+    .bind(payload.created_by.as_deref())
+    .bind(payload.time_created)
     .fetch_one(conn)
     .await?;
 

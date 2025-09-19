@@ -1,6 +1,8 @@
 // src/models.rs
 // Define models here
 
+use std::ops::Deref;
+
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, SqlitePool};
 use crate::writer::Writer;
@@ -67,8 +69,7 @@ pub struct Summary {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct CreateTestResult {
-    pub execution_id: i64,
+pub struct CreateTestResultBase {
     pub name: String,
     pub platform: String,
     pub description: Option<String>,
@@ -78,6 +79,21 @@ pub struct CreateTestResult {
     pub screenshot_id: Option<i64>,
     pub created_by: Option<String>,
     pub time_created: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CreateTestResult {
+    pub execution_id: i64,
+    #[serde(flatten)]
+    pub base: CreateTestResultBase,
+}
+
+impl Deref for CreateTestResult {
+    type Target = CreateTestResultBase;
+
+    fn deref(&self) -> &Self::Target {
+        &self.base
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]

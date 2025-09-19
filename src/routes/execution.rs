@@ -10,7 +10,7 @@ use axum::{
 };
 use std::collections::HashMap;
 
-use crate::models::{AppState, Execution, CreateExecution, ExecutionListResponse, ExecutionResultsResponse};
+use crate::models::{AppState, Execution, CreateExecution, ExecutionListResponse, ExecutionResultsResponse, TestResult, Summary};
 
 pub fn routes() -> Router<AppState> {
     Router::new()
@@ -102,11 +102,95 @@ async fn get_executions(
 }
 
 async fn get_execution_results(
-    Path(_id): Path<i64>,
-    State(_state): State<AppState>,
-    Query(_params): Query<HashMap<String, String>>,
+    Path(id): Path<i64>,
+    State(state): State<AppState>,
+    Query(params): Query<HashMap<String, String>>,
 ) -> Result<Json<ExecutionResultsResponse>, (StatusCode, String)> {
-    // Implementation will be added later
-    Err((StatusCode::NOT_IMPLEMENTED, "Not implemented".to_string()))
+    let mut conn = state.pool.acquire().await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    
+    let limit: i64 = params.get("limit").and_then(|s| s.parse().ok()).unwrap_or(20).min(100);
+    let offset: i64 = params.get("offset").and_then(|s| s.parse().ok()).unwrap_or(0);
+    
+    // Build the base query for test results
+    let mut query = "SELECT * FROM test_result WHERE execution_id = ?".to_string();
+    let mut count_query = "SELECT COUNT(*) FROM test_result WHERE execution_id = ?".to_string();
+    let mut bindings = vec![id.to_string()];
+    
+    // Add filters
+    if let Some(status) = params.get("status") {
+        query.push_str(" AND status = ?");
+        count_query.push_str(" AND status = ?");
+        bindings.push(status.clone());
+    }
+    
+    if let Some(platform) = params.get("platform") {
+        query.push_str(" AND platform = ?");
+        count_query.push_str(" AND platform = ?");
+        bindings.push(platform.clone());
+    }
+    
+    // Add ordering, limit and offset
+    query.push_str(" ORDER BY id ASC LIMIT ? OFFSET ?");
+    
+    // Fetch total count
+    let mut count_query_builder = sqlx::query_scalar::<_, i64>(&count_query);
+    for binding in &bindings {
+        count_query_builder = count_query_builder.bind(binding);
+    }
+    // Add limit and offset parameters for count query (they're not used but needed for binding)
+    count_query_builder = count_query_builder.bind(limit).bind(offset);
+    let total = count_query_builder.fetch_one(&mut *conn).await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    
+    // Fetch items
+    let mut query_builder = sqlx::query_as::<_, TestResult>(&query);
+    for binding in &bindings {
+        query_builder = query_builder.bind(binding);
+    }
+    query_builder = query_builder.bind(limit).bind(offset);
+    let items = query_builder.fetch_all(&mut *conn).await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    
+    let has_next = (offset + limit) < total;
+    
+    // Calculate summary if requested
+    let summary = if params.get("include_summary").map(|s| s.as_str()) == Some("true") {
+        let pass_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM test_result WHERE execution_id = ? AND status = 'P'")
+            .bind(id)
+            .fetch_one(&mut *conn)
+            .await
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+            
+        let fail_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM test_result WHERE execution_id = ? AND status = 'F'")
+            .bind(id)
+            .fetch_one(&mut *conn)
+            .await
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+            
+        let ignor_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM test_result WHERE execution_id = ? AND status = 'I'")
+            .bind(id)
+            .fetch_one(&mut *conn)
+            .await
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        
+        Some(Summary {
+            total: pass_count + fail_count + ignor_count,
+            pass: pass_count,
+            fail: fail_count,
+            ignor: ignor_count,
+        })
+    } else {
+        None
+    };
+    
+    let response = ExecutionResultsResponse {
+        execution_id: id,
+        summary,
+        total,
+        limit,
+        offset,
+        has_next,
+        items,
+    };
+    
+    Ok(Json(response))
 }
 

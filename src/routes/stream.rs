@@ -17,7 +17,7 @@ use crate::routes::utils::upsert_test_result;
 
 pub fn routes() -> Router<AppState> {
     Router::new()
-        .route("/api/executions/:execution_id/results:stream", post(stream_test_results))
+        .route("/api/executions/:execution_id/results/stream", post(stream_test_results))
 }
 
 async fn stream_test_results(
@@ -25,6 +25,9 @@ async fn stream_test_results(
     State(state): State<AppState>,
     body: Body,
 ) -> Result<Json<StreamResponse>, (StatusCode, String)> {
+    println!("###############################");
+
+
     let mut conn = state.pool.acquire().await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     
     // Convert Body to a stream of JSON values
@@ -63,29 +66,13 @@ async fn stream_test_results(
                             continue;
                         }
                         
-                        // Clone the values we need before moving them
-                        let name = payload.name.clone();
-                        let platform = payload.platform.clone();
-                        let description = payload.description.clone();
-                        let status = payload.status.clone();
-                        let execution_time = payload.execution_time;
-                        let log = payload.log.clone();
-                        let screenshot_id = payload.screenshot_id;
-                        let created_by = payload.created_by.clone();
-                        let time_created = payload.time_created;
+                        // Set the execution_id from the path parameter
+                        let mut payload = payload;
+                        payload.execution_id = execution_id;
                         
                         let insert_result = upsert_test_result(
                             &mut *conn,
-                            execution_id,
-                            name,
-                            platform,
-                            description,
-                            status,
-                            execution_time,
-                            log,
-                            screenshot_id,
-                            created_by,
-                            time_created,
+                            &payload,
                         )
                         .await;
                         
@@ -93,9 +80,10 @@ async fn stream_test_results(
                             Ok(_) => inserted += 1,
                             Err(e) => {
                                 failed += 1;
+                                eprintln!("00000000, Error: {e}");
                                 let raw_payload = serde_json::to_value(&payload).unwrap_or(serde_json::Value::Null);
                                 failed_items.push(FailedItem {
-                                    test_name: payload.name,
+                                    test_name: payload.name.clone(),
                                     error: e.to_string(),
                                     raw_payload,
                                 });
@@ -103,6 +91,7 @@ async fn stream_test_results(
                         }
                     }
                     Err(e) => {
+                        eprintln!("1111111, Error: {e}");
                         failed += 1;
                         failed_items.push(FailedItem {
                             test_name: "Unknown".to_string(),
@@ -114,6 +103,7 @@ async fn stream_test_results(
             }
             Err(e) => {
                 failed += 1;
+                eprintln!("####### Error: {e}");
                 failed_items.push(FailedItem {
                     test_name: "Unknown".to_string(),
                     error: e.to_string(),

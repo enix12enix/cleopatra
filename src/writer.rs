@@ -91,16 +91,7 @@ async fn do_flush(conn: &mut SqliteConnection, buffer: &[CreateTestResult]) -> R
     for item in buffer {
         upsert_test_result(
             &mut *tx,
-            item.execution_id,
-            item.name.clone(),
-            item.platform.clone(),
-            item.description.clone(),
-            item.status.clone(),
-            item.execution_time,
-            item.log.clone(),
-            item.screenshot_id,
-            item.created_by.clone(),
-            item.time_created,
+            item,
         )
         .await?;
     }
