@@ -6,7 +6,6 @@ use axum::Router;
 mod execution;
 mod result;
 mod stream;
-pub mod utils;
 
 use crate::models::AppState;
 
