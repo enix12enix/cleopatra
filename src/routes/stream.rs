@@ -13,11 +13,10 @@ use futures::{StreamExt, TryStreamExt};
 use futures::AsyncBufReadExt;
 
 use crate::models::{AppState, CreateTestResult, StreamResponse, FailedItem};
-use crate::routes::utils::upsert_test_result;
 
 pub fn routes() -> Router<AppState> {
     Router::new()
-        .route("/api/executions/:execution_id/results/stream", post(stream_test_results))
+        .route("/api/executions/:execution_id/result/stream", post(stream_test_results))
 }
 
 async fn stream_test_results(
@@ -25,11 +24,6 @@ async fn stream_test_results(
     State(state): State<AppState>,
     body: Body,
 ) -> Result<Json<StreamResponse>, (StatusCode, String)> {
-    println!("###############################");
-
-
-    let mut conn = state.pool.acquire().await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    
     // Convert Body to a stream of JSON values
     let stream = body
         .into_data_stream()
@@ -40,7 +34,7 @@ async fn stream_test_results(
     futures::pin_mut!(stream);
     
     let mut received = 0;
-    let mut inserted = 0;
+    let mut enqueued = 0;
     let mut failed = 0;
     let mut failed_items = Vec::new();
     
@@ -53,7 +47,7 @@ async fn stream_test_results(
                 let payload: Result<CreateTestResult, _> = serde_json::from_str(&line);
                 
                 match payload {
-                    Ok(payload) => {
+                    Ok(mut payload) => {
                         // Validate payload
                         if !matches!(payload.status.as_str(), "P" | "F" | "I") {
                             failed += 1;
@@ -67,31 +61,22 @@ async fn stream_test_results(
                         }
                         
                         // Set the execution_id from the path parameter
-                        let mut payload = payload;
                         payload.execution_id = execution_id;
                         
-                        let insert_result = upsert_test_result(
-                            &mut *conn,
-                            &payload,
-                        )
-                        .await;
-                        
-                        match insert_result {
-                            Ok(_) => inserted += 1,
+                        // Enqueue the result to be processed by the background writer
+                        match state.writer.enqueue(payload).await {
+                            Ok(_) => enqueued += 1,
                             Err(e) => {
                                 failed += 1;
-                                eprintln!("00000000, Error: {e}");
-                                let raw_payload = serde_json::to_value(&payload).unwrap_or(serde_json::Value::Null);
                                 failed_items.push(FailedItem {
-                                    test_name: payload.name.clone(),
-                                    error: e.to_string(),
-                                    raw_payload,
+                                    test_name: "Unknown".to_string(),
+                                    error: e,
+                                    raw_payload: serde_json::Value::Null,
                                 });
                             }
                         }
                     }
                     Err(e) => {
-                        eprintln!("1111111, Error: {e}");
                         failed += 1;
                         failed_items.push(FailedItem {
                             test_name: "Unknown".to_string(),
@@ -103,7 +88,6 @@ async fn stream_test_results(
             }
             Err(e) => {
                 failed += 1;
-                eprintln!("####### Error: {e}");
                 failed_items.push(FailedItem {
                     test_name: "Unknown".to_string(),
                     error: e.to_string(),
@@ -115,16 +99,16 @@ async fn stream_test_results(
     
     let status = if failed == 0 {
         "C" // Completed
-    } else if inserted > 0 {
+    } else if enqueued > 0 {
         "P" // Partial
     } else {
         "F" // Failed
     };
     
     let message = if failed == 0 {
-        "All test results processed successfully".to_string()
+        "All test results enqueued successfully".to_string()
     } else {
-        "Some test results failed".to_string()
+        "Some test results failed to enqueue".to_string()
     };
     
     let response = StreamResponse {
@@ -132,7 +116,7 @@ async fn stream_test_results(
         message,
         execution_id,
         received,
-        inserted,
+        inserted: enqueued, // Using inserted field to represent enqueued items
         failed,
         failed_items: if failed > 0 { Some(failed_items) } else { None },
     };

@@ -14,17 +14,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Load configuration
     let config = config::Config::from_env()?;
 
-    // Initialize the database pool (used by routes)
-    let pool = db::init_db(&config).await?;
+    // Initialize the database pools (main pool for routes, writer pool for writer)
+    let (main_pool, writer_pool) = db::init_db(&config).await?;
 
-    // Start the writer with a dedicated connection
-    let writer = writer::start_writer(&config.writer, &config.database.url).await;
+    // Start the writer with the dedicated connection pool
+    let writer = writer::start_writer(&config.writer, writer_pool).await;
 
     // Clone for shutdown handling
     let writer_for_shutdown = writer.clone();
 
     // Create application state
-    let state = models::AppState { pool, writer };
+    let state = models::AppState { pool: main_pool, writer };
 
     // Build our application by composing routes
     let app = Router::new()
