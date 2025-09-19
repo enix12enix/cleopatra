@@ -9,8 +9,7 @@ use axum::{
     Router,
 };
 
-use crate::models::{AppState, TestResult, CreateTestResult};
-use crate::routes::utils::upsert_test_result;
+use crate::models::{AppState, TestResult, CreateTestResult, CreateTestResultResponse};
 
 pub fn routes() -> Router<AppState> {
     Router::new()
@@ -21,16 +20,17 @@ pub fn routes() -> Router<AppState> {
 async fn create_test_result(
     State(state): State<AppState>,
     Json(payload): Json<CreateTestResult>,
-) -> Result<(StatusCode, Json<TestResult>), (StatusCode, String)> {
-    let mut conn = state.pool.acquire().await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    let test_result = upsert_test_result(
-        &mut *conn,
-        &payload,
-    )
-    .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+) -> Result<(StatusCode, Json<CreateTestResultResponse>), (StatusCode, String)> {
+    // Enqueue the result to be processed by the background writer
+    state.writer.enqueue(payload).await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
     
-    Ok((StatusCode::CREATED, Json(test_result)))
+    // Return a response indicating the result was delivered to the queue
+    let response = CreateTestResultResponse {
+        status: "delivered".to_string(),
+    };
+    
+    Ok((StatusCode::CREATED, Json(response)))
 }
 
 async fn get_test_result(

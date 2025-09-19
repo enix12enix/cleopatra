@@ -97,6 +97,11 @@ impl Deref for CreateTestResult {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct CreateTestResultResponse {
+    pub status: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct StreamResponse {
     pub status: String,
     pub message: String,

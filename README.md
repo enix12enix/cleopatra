@@ -249,6 +249,13 @@ request
 }
 ```
 
+response
+```json
+{
+  "status": "delivered"
+}
+```
+
 #### GET /api/result/{id}
 
 response
