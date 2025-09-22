@@ -12,7 +12,8 @@ use axum::body::Body;
 use futures::{StreamExt, TryStreamExt};
 use futures::AsyncBufReadExt;
 
-use crate::models::{AppState, CreateTestResult, StreamResponse, FailedItem};
+use crate::models::{CreateTestResult, StreamResponse, FailedItem};
+use crate::state::AppState;
 
 pub fn routes() -> Router<AppState> {
     Router::new()
@@ -24,7 +25,6 @@ async fn stream_test_results(
     State(state): State<AppState>,
     body: Body,
 ) -> Result<Json<StreamResponse>, (StatusCode, String)> {
-    // Convert Body to a stream of JSON values
     let stream = body
         .into_data_stream()
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
@@ -43,11 +43,10 @@ async fn stream_test_results(
         
         match line_result {
             Ok(line) => {
-                // Parse JSON from line
-                let payload: Result<CreateTestResult, _> = serde_json::from_str(&line);
+                let payload: Result<CreateTestResult, _> = CreateTestResult::from_json(&line, execution_id);
                 
                 match payload {
-                    Ok(mut payload) => {
+                    Ok(payload) => {
                         // Validate payload
                         if !matches!(payload.status.as_str(), "P" | "F" | "I") {
                             failed += 1;
@@ -59,9 +58,6 @@ async fn stream_test_results(
                             });
                             continue;
                         }
-                        
-                        // Set the execution_id from the path parameter
-                        payload.execution_id = execution_id;
                         
                         // Enqueue the result to be processed by the background writer
                         match state.writer.enqueue(payload).await {
@@ -105,18 +101,11 @@ async fn stream_test_results(
         "F" // Failed
     };
     
-    let message = if failed == 0 {
-        "All test results enqueued successfully".to_string()
-    } else {
-        "Some test results failed to enqueue".to_string()
-    };
-    
     let response = StreamResponse {
         status: status.to_string(),
-        message,
         execution_id,
         received,
-        inserted: enqueued, // Using inserted field to represent enqueued items
+        inserted: enqueued,
         failed,
         failed_items: if failed > 0 { Some(failed_items) } else { None },
     };

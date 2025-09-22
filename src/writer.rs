@@ -34,7 +34,6 @@ pub async fn start_writer(config: &WriterConfig, writer_pool: SqlitePool) -> Wri
     let flush_interval = Duration::from_millis(config.flush_interval_ms);
 
     tokio::spawn(async move {
-        // Get dedicated connection from the writer pool
         let mut conn = writer_pool.acquire().await.expect("Failed to acquire writer connection");
         
         let mut buffer = Vec::with_capacity(batch_size);
@@ -62,6 +61,7 @@ pub async fn start_writer(config: &WriterConfig, writer_pool: SqlitePool) -> Wri
                         }
                     }
                 }
+                // periodically flush
                 _ = sleep(flush_interval), if !buffer.is_empty() => {
                     flush(&mut conn, &buffer).await;
                     buffer.clear();

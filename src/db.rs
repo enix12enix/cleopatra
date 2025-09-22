@@ -6,7 +6,6 @@ use crate::config::Config;
 use crate::models::{CreateTestResult, TestResult};
 
 pub async fn init_db(config: &Config) -> Result<(SqlitePool, SqlitePool)> {
-    // Clone the values we need for the closure
     let wal_enabled = config.database.wal;
     let wal_autocheckpoint = config.database.wal_autocheckpoint;
     

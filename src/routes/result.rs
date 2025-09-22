@@ -9,7 +9,8 @@ use axum::{
     Router,
 };
 
-use crate::models::{AppState, TestResult, CreateTestResult, CreateTestResultResponse};
+use crate::models::{TestResult, CreateTestResult, CreateTestResultResponse};
+use crate::state::AppState;
 
 pub fn routes() -> Router<AppState> {
     Router::new()
@@ -25,7 +26,6 @@ async fn create_test_result(
     state.writer.enqueue(payload).await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
     
-    // Return a response indicating the result was delivered to the queue
     let response = CreateTestResultResponse {
         status: "delivered".to_string(),
     };

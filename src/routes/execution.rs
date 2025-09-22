@@ -10,7 +10,8 @@ use axum::{
 };
 use std::collections::HashMap;
 
-use crate::models::{AppState, Execution, CreateExecution, ExecutionListResponse, ExecutionResultsResponse, TestResult, Summary};
+use crate::models::{Execution, CreateExecution, ExecutionListResponse, ExecutionResultsResponse, TestResult, Summary};
+use crate::state::AppState;
 
 pub fn routes() -> Router<AppState> {
     Router::new()

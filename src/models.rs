@@ -4,8 +4,7 @@
 use std::ops::Deref;
 
 use serde::{Deserialize, Serialize};
-use sqlx::{FromRow, SqlitePool};
-use crate::writer::Writer;
+use sqlx::FromRow;
 
 #[derive(Debug, Serialize, Deserialize, FromRow)]
 pub struct Execution {
@@ -88,6 +87,16 @@ pub struct CreateTestResult {
     pub base: CreateTestResultBase,
 }
 
+impl CreateTestResult {
+   pub fn from_json(
+        json: &str,
+        execution_id: i64,
+    ) -> Result<Self, serde_json::Error> {
+        let base: CreateTestResultBase = serde_json::from_str(json)?;
+        Ok(CreateTestResult { execution_id, base })
+    }
+}
+
 impl Deref for CreateTestResult {
     type Target = CreateTestResultBase;
 
@@ -104,7 +113,6 @@ pub struct CreateTestResultResponse {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct StreamResponse {
     pub status: String,
-    pub message: String,
     pub execution_id: i64,
     pub received: i64,
     pub inserted: i64,
@@ -117,11 +125,4 @@ pub struct FailedItem {
     pub test_name: String,
     pub error: String,
     pub raw_payload: serde_json::Value,
-}
-
-/// Application state that holds shared resources
-#[derive(Clone)]
-pub struct AppState {
-    pub pool: SqlitePool,
-    pub writer: Writer,
 }
