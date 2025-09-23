@@ -15,6 +15,21 @@ use futures::AsyncBufReadExt;
 use crate::models::{CreateTestResult, StreamResponse, FailedItem};
 use crate::state::AppState;
 
+// Status constants for stream response
+const STATUS_COMPLETED: &str = "C"; // Completed
+const STATUS_PARTIAL: &str = "P";   // Partial
+const STATUS_FAILED: &str = "F";    // Failed
+
+fn to_status(failed: i64, enqueued: i64) -> &'static str {
+    if failed == 0 {
+        STATUS_COMPLETED
+    } else if enqueued > 0 {
+        STATUS_PARTIAL
+    } else {
+        STATUS_FAILED
+    }
+}
+
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/api/executions/:execution_id/result/stream", post(stream_test_results))
@@ -47,27 +62,14 @@ async fn stream_test_results(
                 
                 match payload {
                     Ok(payload) => {
-                        // Validate payload
-                        if !matches!(payload.status.as_str(), "P" | "F" | "I") {
-                            failed += 1;
-                            let raw_payload = serde_json::to_value(&payload).unwrap_or(serde_json::Value::Null);
-                            failed_items.push(FailedItem {
-                                test_name: payload.name.clone(),
-                                error: format!("Invalid status value: {}", payload.status),
-                                raw_payload,
-                            });
-                            continue;
-                        }
-                        
                         // Enqueue the result to be processed by the background writer
                         match state.writer.enqueue(payload).await {
                             Ok(_) => enqueued += 1,
                             Err(e) => {
                                 failed += 1;
                                 failed_items.push(FailedItem {
-                                    test_name: "Unknown".to_string(),
                                     error: e,
-                                    raw_payload: serde_json::Value::Null,
+                                    raw_payload: Some(line)
                                 });
                             }
                         }
@@ -75,9 +77,8 @@ async fn stream_test_results(
                     Err(e) => {
                         failed += 1;
                         failed_items.push(FailedItem {
-                            test_name: "Unknown".to_string(),
                             error: e.to_string(),
-                            raw_payload: serde_json::Value::Null,
+                            raw_payload: Some(line)
                         });
                     }
                 }
@@ -85,24 +86,15 @@ async fn stream_test_results(
             Err(e) => {
                 failed += 1;
                 failed_items.push(FailedItem {
-                    test_name: "Unknown".to_string(),
                     error: e.to_string(),
-                    raw_payload: serde_json::Value::Null,
+                    raw_payload: None
                 });
             }
         }
     }
     
-    let status = if failed == 0 {
-        "C" // Completed
-    } else if enqueued > 0 {
-        "P" // Partial
-    } else {
-        "F" // Failed
-    };
-    
     let response = StreamResponse {
-        status: status.to_string(),
+        status: to_status(failed, enqueued).to_string(),
         execution_id,
         received,
         inserted: enqueued,
@@ -112,4 +104,3 @@ async fn stream_test_results(
     
     Ok(Json(response))
 }
-

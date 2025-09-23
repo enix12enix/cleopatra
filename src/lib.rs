@@ -3,4 +3,4 @@
 
 pub mod models;
 
-pub use models::{Execution, TestResult, CreateTestResultResponse, StreamResponse, ExecutionListResponse};
+pub use models::{Execution, TestResult, CreateTestResultResponse, StreamResponse, ExecutionListResponse, Status};

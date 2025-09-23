@@ -22,7 +22,7 @@ pub struct TestResult {
     pub name: String,
     pub platform: String,
     pub description: Option<String>,
-    pub status: String,
+    pub status: Status,
     pub execution_time: Option<i64>,
     pub counter: i64,
     pub log: Option<String>,
@@ -72,7 +72,7 @@ pub struct CreateTestResultBase {
     pub name: String,
     pub platform: String,
     pub description: Option<String>,
-    pub status: String,
+    pub status: Status,
     pub execution_time: Option<i64>,
     pub log: Option<String>,
     pub screenshot_id: Option<i64>,
@@ -122,7 +122,15 @@ pub struct StreamResponse {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct FailedItem {
-    pub test_name: String,
     pub error: String,
-    pub raw_payload: serde_json::Value,
+    pub raw_payload: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, sqlx::Type, Clone, PartialEq)]
+#[serde(rename_all = "UPPERCASE")]
+#[sqlx(type_name = "TEXT")]
+pub enum Status {
+    P, // passed
+    F, // failed
+    I, // ignored
 }

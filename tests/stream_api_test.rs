@@ -58,11 +58,13 @@ async fn test_stream_results_with_invalid_data() {
 
     let execution_id = execution.id.expect("Execution ID should be a number");
 
+    let invalid_result =  r#"{"name":"invalid_test","platform":"api","description":"Test password reset functionality","status":"X","execution_time":1800,"log":"Password reset successful","screenshot_id":1003,"created_by":"test-user","time_created":1234567893}"#;
+
     // Prepare test result data with one invalid entry (invalid status)
    let test_results: Vec<&str> = vec![
     r#"{"name":"test_login_functionality","platform":"web","description":"Test login with valid credentials","status":"P","execution_time":1500,"log":"Login successful","screenshot_id":1001,"created_by":"test-user","time_created":1234567891}"#,
     r#"{"name":"test_signup_functionality","platform":"web","description":"Test signup flow","status":"F","execution_time":2300,"log":"Signup failed","screenshot_id":1002,"created_by":"test-user","time_created":1234567892}"#,
-    r#"{"name":"invalid_test","platform":"api","description":"Test password reset functionality","status":"X","execution_time":1800,"log":"Password reset successful","screenshot_id":1003,"created_by":"test-user","time_created":1234567893}"#,
+    invalid_result,
    ];
     // Send the stream request using the helper function
     let stream_response = common::helper::stream_create_results(execution_id, test_results)
@@ -80,6 +82,6 @@ async fn test_stream_results_with_invalid_data() {
     // Verify the failed item details
     let failed_items = stream_response.failed_items.unwrap();
     assert_eq!(failed_items.len(), 1);
-    assert_eq!(failed_items[0].test_name, "invalid_test");
-    assert!(failed_items[0].error.contains("Invalid status value"));
+    assert!(failed_items[0].error.contains("unknown variant `X`"));
+    assert_eq!(<std::option::Option<std::string::String> as Clone>::clone(&failed_items[0].raw_payload).unwrap(),  invalid_result);
 }

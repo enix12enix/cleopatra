@@ -5,6 +5,8 @@ mod common {
     pub mod helper;
 }
 
+use cleopatra::models::Status;
+
 #[tokio::test]
 async fn test_create_result() {
     // First, create an execution to associate the result with
@@ -92,7 +94,7 @@ async fn test_get_result_by_id() {
     assert_eq!(result.name, "test_get_result");
     assert_eq!(result.platform, "api");
     assert_eq!(result.description.as_ref().unwrap(), "Test get result by ID");
-    assert_eq!(result.status, "P");
+    assert_eq!(result.status, Status::P);
     assert_eq!(result.execution_time, Some(800));
     assert_eq!(result.log.as_ref().unwrap(), "Test passed");
     assert_eq!(result.screenshot_id, Some(1002));
@@ -170,7 +172,7 @@ async fn test_upsert_result() {
     assert_eq!(result.name, "test_upsert_functionality");
     assert_eq!(result.platform, "web");
     assert_eq!(result.description.as_ref().unwrap(), "Test passed");
-    assert_eq!(result.status, "P");
+    assert_eq!(result.status, Status::P);
     assert_eq!(result.execution_time, Some(1200));
     assert_eq!(result.log.as_ref().unwrap(), "Second run");
     assert!(result.screenshot_id.is_none());
