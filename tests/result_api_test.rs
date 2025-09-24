@@ -1,9 +1,6 @@
 // Integration tests for the result API
 // Assumes the server is already running
-mod common {
-    pub mod test_config;
-    pub mod helper;
-}
+mod common;
 
 use cleopatra::models::Status;
 

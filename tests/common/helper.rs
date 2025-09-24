@@ -1,5 +1,5 @@
 // Test helper functions
-use std::thread;
+use std::{collections::HashMap, thread};
 use std::time::Duration;
 use reqwest;
 use serde_json::Value;
@@ -116,7 +116,7 @@ pub async fn get_executions() -> Result<ExecutionListResponse, Box<dyn std::erro
 /// Get executions by calling the API with filters
 /// Takes a hashmap of filters to apply to the request
 /// Returns a list of executions
-pub async fn get_executions_with_filters(filters: std::collections::HashMap<String, String>) -> Result<ExecutionListResponse, Box<dyn std::error::Error>> {
+pub async fn get_executions_with_filters(filters: &HashMap<String, String>) -> Result<ExecutionListResponse, Box<dyn std::error::Error>> {
     let config = crate::common::test_config::TestConfig::from_file()?;
     
     // Build the URL with query parameters

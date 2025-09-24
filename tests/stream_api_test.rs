@@ -1,10 +1,7 @@
 // Integration tests for the stream API
 // Assumes the server is already running
 
-mod common {
-    pub mod helper;
-    pub mod test_config;
-}
+mod common;
 
 #[tokio::test]
 async fn test_stream_results() {

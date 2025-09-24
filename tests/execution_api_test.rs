@@ -1,10 +1,13 @@
 // Integration tests for the execution API
 // Assumes the server is already running
 
-mod common {
-    pub mod test_config;
-    pub mod helper;
-}
+mod common;
+
+use std::collections::HashMap;
+
+use fake::Fake;
+use fake::faker::lorem::en::Sentence;
+use fake::faker::name::en::Name;
 
 #[tokio::test]
 async fn test_create_execution() {
@@ -14,11 +17,12 @@ async fn test_create_execution() {
         "created_by": "test-user",
         "time_created": 1234567890
     }"#;
-    
-    let execution = common::helper::create_execution(execution_json).await
+
+    let execution = common::helper::create_execution(execution_json)
+        .await
         .expect("Failed to create execution")
         .expect("Expected execution to be created");
-    
+
     assert_eq!(execution.name, "Test Execution");
     assert_eq!(execution.tag, Some("integration-test".to_string()));
     assert_eq!(execution.created_by, Some("test-user".to_string()));
@@ -34,30 +38,35 @@ async fn test_get_executions() {
         "created_by": "test-user",
         "time_created": 1234567890
     }"#;
-    
-    common::helper::create_execution(create_execution_json).await
+
+    common::helper::create_execution(create_execution_json)
+        .await
         .expect("Failed to create execution")
         .expect("Expected execution to be created");
-    
+
     // Then get the executions
-    let executions_response = common::helper::get_executions().await
+    let executions_response = common::helper::get_executions()
+        .await
         .expect("Failed to get executions");
-    
+
     // Verify that we got a successful response
     assert!(executions_response.total >= 1);
     assert!(!executions_response.items.is_empty());
-    
+
     // Find the execution we just created
     let found_execution = executions_response.items.iter().find(|item| {
-        item.name == "Test Execution" && 
-        item.tag == Some("integration-test".to_string()) && 
-        item.created_by == Some("test-user".to_string())
+        item.name == "Test Execution"
+            && item.tag == Some("integration-test".to_string())
+            && item.created_by == Some("test-user".to_string())
     });
-    
+
     // Verify that the created execution is in the list
-    assert!(found_execution.is_some(), "Created execution not found in the list of executions");
+    assert!(
+        found_execution.is_some(),
+        "Created execution not found in the list of executions"
+    );
     let found_execution = found_execution.unwrap();
-    
+
     // Verify the execution details
     assert_eq!(found_execution.name, "Test Execution");
     assert_eq!(found_execution.tag, Some("integration-test".to_string()));
@@ -68,44 +77,66 @@ async fn test_get_executions() {
 #[tokio::test]
 async fn test_get_executions_with_filter() {
     // Create two executions with different creators
-    let create_execution_json1 = r#"{
-        "name": "Test Execution 1",
-        "tag": "integration-test",
-        "created_by": "test-user-1",
-        "time_created": 1234567890
-    }"#;
-    
-    let create_execution_json2 = r#"{
-        "name": "Test Execution 2",
-        "tag": "integration-test",
-        "created_by": "test-user-2",
-        "time_created": 1234567891
-    }"#;
-    
-    // Create first execution
-    let _created_execution1 = common::helper::create_execution(create_execution_json1).await
-        .expect("Failed to create execution 1")
-        .expect("Expected execution 1 to be created");
-    
-    // Create second execution
-    let _created_execution2 = common::helper::create_execution(create_execution_json2).await
-        .expect("Failed to create execution 2")
-        .expect("Expected execution 2 to be created");
-    
-    // Get executions filtered by creator
-    let mut filters = std::collections::HashMap::new();
-    filters.insert("created_by".to_string(), "test-user-1".to_string());
-    
-    let filtered_executions = common::helper::get_executions_with_filters(filters).await
+    let created_by_1: String = Name().fake();
+    let create_execution_json1 = format!(
+        r#"{{
+            "name": "Test Execution 1",
+            "tag": "integration-test",
+            "created_by": "{}",
+            "time_created": 1234567890
+        }}"#,
+        created_by_1
+    );
+
+    common::helper::create_execution(&create_execution_json1)
+            .await
+            .expect(&format!("Failed to create execution {}", create_execution_json1))
+            .expect(&format!("Expected execution {} to be created", create_execution_json1));
+
+    let created_by_2: String = Name().fake();
+    for i in 0..21 {
+        let name: String = Sentence(2..8).fake();
+
+        let create_execution_json = format!(
+            r#"{{
+                "name": "{}",
+                "tag": "api-test",
+                "created_by": "{}",
+                "time_created": {}
+            }}"#,
+            name,
+            created_by_2,
+            1234567890 + i as u64
+        );
+
+        common::helper::create_execution(&create_execution_json)
+            .await
+            .expect(&format!("Failed to create execution {}", i + 1))
+            .expect(&format!("Expected execution {} to be created", i + 1));
+    }
+
+    // get executions created by created_by_1
+    let mut filters = HashMap::new();
+    filters.insert("created_by".to_string(), created_by_1);
+
+    let filtered_executions = common::helper::get_executions_with_filters(&filters)
+        .await
         .expect("Failed to get filtered executions");
-    
-    // Verify that we got exactly one execution matching the filter
+
     assert_eq!(filtered_executions.items.len(), 1);
     assert_eq!(filtered_executions.total, 1);
-    
-    // Verify the filtered execution details
+
     let filtered_execution = &filtered_executions.items[0];
     assert_eq!(filtered_execution.name, "Test Execution 1");
-    assert_eq!(filtered_execution.created_by, Some("test-user-1".to_string()));
     assert_eq!(filtered_execution.tag, Some("integration-test".to_string()));
+
+
+    // get executions created by created_by_2
+    filters.insert("created_by".to_string(), created_by_2);
+    filters.insert("limit".to_string(), "10".to_string());
+    let filtered_executions2 = common::helper::get_executions_with_filters(&filters)
+        .await
+        .expect("Failed to get filtered executions");
+    assert_eq!(filtered_executions2.items.len(), 10);
+    assert_eq!(filtered_executions2.total, 21);
 }
