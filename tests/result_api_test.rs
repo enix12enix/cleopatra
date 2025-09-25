@@ -71,7 +71,7 @@ async fn test_get_result_by_id() {
         "time_created": 1234567892
     }}"#, execution_id);
     
-    let create_response = common::helper::create_result(&create_result_json).await
+    common::helper::create_result(&create_result_json).await
         .expect("Failed to create test result")
         .expect("Expected test result to be created");
 
@@ -100,9 +100,6 @@ async fn test_get_result_by_id() {
 
 #[tokio::test]
 async fn test_upsert_result() {
-    let test_config = common::test_config::TestConfig::from_file().expect("Failed to load test config");
-    let client = reqwest::Client::new();
-    
     // First, create an execution
     let create_execution_body = r#"{
         "name": "Test Execution for Upsert",

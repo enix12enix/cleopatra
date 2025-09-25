@@ -4,11 +4,14 @@ use std::time::Duration;
 use reqwest;
 use serde_json::Value;
 use cleopatra::models::{Execution, TestResult, CreateTestResultResponse, StreamResponse, ExecutionListResponse};
+use anyhow::Result;
 
 /// Get test results for a given execution ID by calling the API
 /// Returns a vector of result objects, or None if no results are found
-pub async fn get_results(execution_id: i64) -> Result<Option<Vec<TestResult>>, Box<dyn std::error::Error>> {
-    let config = crate::common::test_config::TestConfig::from_file()?;
+#[allow(dead_code)]
+pub async fn get_results(execution_id: i64) -> Result<Option<Vec<TestResult>>> {
+    let config = crate::common::test_config::TestConfig::from_file()
+        .map_err(|e| anyhow::anyhow!("Failed to load test config: {}", e))?;
     let url = config.get_execution_result_api_url(execution_id);
     
     let client = reqwest::Client::new();
@@ -39,14 +42,16 @@ pub async fn get_results(execution_id: i64) -> Result<Option<Vec<TestResult>>, B
         }
     } else {
         let error_text = response.text().await?;
-        Err(format!("API request failed with status {}: {}", status, error_text).into())
+        anyhow::bail!("API request failed with status {}: {}", status, error_text)
     }
 }
 
 /// Get a specific test result by its ID by calling the API
 /// Returns the test result object, or None if no result is found
-pub async fn get_result(result_id: i64) -> Result<Option<TestResult>, Box<dyn std::error::Error>> {
-    let config = crate::common::test_config::TestConfig::from_file()?;
+#[allow(dead_code)]
+pub async fn get_result(result_id: i64) -> Result<Option<TestResult>> {
+    let config = crate::common::test_config::TestConfig::from_file()
+        .map_err(|e| anyhow::anyhow!("Failed to load test config: {}", e))?;
     
     // Make the HTTP request
     let client = reqwest::Client::new();
@@ -64,12 +69,14 @@ pub async fn get_result(result_id: i64) -> Result<Option<TestResult>, Box<dyn st
         Ok(None)
     } else {
         let error_text = response.text().await?;
-        Err(format!("API request failed with status {}: {}", status, error_text).into())
+        anyhow::bail!("API request failed with status {}: {}", status, error_text)
     }
 }
 
-pub async fn create_execution(execution_json: &str) -> Result<Option<Execution>, Box<dyn std::error::Error>> {
-    let config = crate::common::test_config::TestConfig::from_file()?;
+#[allow(dead_code)]
+pub async fn create_execution(execution_json: &str) -> Result<Option<Execution>> {
+    let config = crate::common::test_config::TestConfig::from_file()
+        .map_err(|e| anyhow::anyhow!("Failed to load test config: {}", e))?;
     let _parsed: serde_json::Value = serde_json::from_str(execution_json)?;
     
     let client = reqwest::Client::new();
@@ -87,14 +94,16 @@ pub async fn create_execution(execution_json: &str) -> Result<Option<Execution>,
         Ok(Some(execution))
     } else {
         let error_text = response.text().await?;
-        Err(format!("API request failed with status {}: {}", status, error_text).into())
+        anyhow::bail!("API request failed with status {}: {}", status, error_text)
     }
 }
 
 /// Get executions by calling the API
 /// Returns a list of executions
-pub async fn get_executions() -> Result<ExecutionListResponse, Box<dyn std::error::Error>> {
-    let config = crate::common::test_config::TestConfig::from_file()?;
+#[allow(dead_code)]
+pub async fn get_executions() -> Result<ExecutionListResponse> {
+    let config = crate::common::test_config::TestConfig::from_file()
+        .map_err(|e| anyhow::anyhow!("Failed to load test config: {}", e))?;
     
     let client = reqwest::Client::new();
     let response = client
@@ -109,15 +118,17 @@ pub async fn get_executions() -> Result<ExecutionListResponse, Box<dyn std::erro
         Ok(executions)
     } else {
         let error_text = response.text().await?;
-        Err(format!("API request failed with status {}: {}", status, error_text).into())
+        anyhow::bail!("API request failed with status {}: {}", status, error_text)
     }
 }
 
 /// Get executions by calling the API with filters
 /// Takes a hashmap of filters to apply to the request
 /// Returns a list of executions
-pub async fn get_executions_with_filters(filters: &HashMap<String, String>) -> Result<ExecutionListResponse, Box<dyn std::error::Error>> {
-    let config = crate::common::test_config::TestConfig::from_file()?;
+#[allow(dead_code)]
+pub async fn get_executions_with_filters(filters: &HashMap<String, String>) -> Result<ExecutionListResponse> {
+    let config = crate::common::test_config::TestConfig::from_file()
+        .map_err(|e| anyhow::anyhow!("Failed to load test config: {}", e))?;
     
     // Build the URL with query parameters
     let base_url = config.get_executions_api_url();
@@ -146,12 +157,14 @@ pub async fn get_executions_with_filters(filters: &HashMap<String, String>) -> R
         Ok(executions)
     } else {
         let error_text = response.text().await?;
-        Err(format!("API request failed with status {}: {}", status, error_text).into())
+        anyhow::bail!("API request failed with status {}: {}", status, error_text)
     }
 }
 
-pub async fn create_result(request_json: &str) -> Result<Option<CreateTestResultResponse>, Box<dyn std::error::Error>> {
-    let config = crate::common::test_config::TestConfig::from_file()?;
+#[allow(dead_code)]
+pub async fn create_result(request_json: &str) -> Result<Option<CreateTestResultResponse>> {
+    let config = crate::common::test_config::TestConfig::from_file()
+        .map_err(|e| anyhow::anyhow!("Failed to load test config: {}", e))?;
     let _parsed: serde_json::Value = serde_json::from_str(request_json)?;
     
     let client = reqwest::Client::new();
@@ -169,15 +182,17 @@ pub async fn create_result(request_json: &str) -> Result<Option<CreateTestResult
         Ok(Some(result_response))
     } else {
         let error_text = response.text().await?;
-        Err(format!("API request failed with status {}: {}", status, error_text).into())
+        anyhow::bail!("API request failed with status {}: {}", status, error_text)
     }
 }
 
 /// Create multiple test results by calling the stream API
 /// Takes an execution ID and a vector of JSON strings representing the test results to create
 /// Returns the stream response, or None if creation failed
-pub async fn stream_create_results(execution_id: i64, results: Vec<&str>) -> Result<Option<StreamResponse>, Box<dyn std::error::Error>> {
-    let config = crate::common::test_config::TestConfig::from_file()?;
+#[allow(dead_code)]
+pub async fn stream_create_results(execution_id: i64, results: Vec<&str>) -> Result<Option<StreamResponse>> {
+    let config = crate::common::test_config::TestConfig::from_file()
+        .map_err(|e| anyhow::anyhow!("Failed to load test config: {}", e))?;
     
     // Join the JSON strings with newlines to create NDJSON format
     let ndjson_body = results.join("\n");
@@ -198,10 +213,11 @@ pub async fn stream_create_results(execution_id: i64, results: Vec<&str>) -> Res
         Ok(Some(stream_response))
     } else {
         let error_text = response.text().await?;
-        Err(format!("API request failed with status {}: {}", status, error_text).into())
+        anyhow::bail!("API request failed with status {}: {}", status, error_text)
     }
 }
 
+#[allow(dead_code)]
 pub fn wait() {
     thread::sleep(Duration::from_secs(3));
 }
