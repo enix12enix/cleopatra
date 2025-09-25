@@ -91,3 +91,20 @@ pub async fn upsert_test_result(
 
     Ok(test_result)
 }
+
+/// Check if an execution exists by its ID
+pub async fn check_execution_existing(
+    conn: &mut SqliteConnection,
+    execution_id: i64,
+) -> bool {
+    match sqlx::query_scalar::<_, i64>(
+        "SELECT id FROM execution WHERE id = ?"
+    )
+    .bind(execution_id)
+    .fetch_optional(conn)
+    .await {
+        Ok(Some(_)) => true,
+        Ok(None) => false,
+        Err(_) => false,
+    }
+}

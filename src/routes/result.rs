@@ -9,6 +9,7 @@ use axum::{
     Router,
 };
 
+use crate::db::check_execution_existing;
 use crate::models::{TestResult, CreateTestResult, CreateTestResultResponse};
 use crate::state::AppState;
 
@@ -22,6 +23,15 @@ async fn create_test_result(
     State(state): State<AppState>,
     Json(payload): Json<CreateTestResult>,
 ) -> Result<(StatusCode, Json<CreateTestResultResponse>), (StatusCode, String)> {
+    // Check if the execution exists
+    {
+        let mut conn = state.pool.acquire().await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        if !check_execution_existing(&mut *conn, payload.execution_id).await {
+            let error_message = format!("invalid execution_id, no execution is found, execution_id :: {}", payload.execution_id);
+            return Err((StatusCode::BAD_REQUEST, error_message));
+        }
+    }
+
     // Enqueue the result to be processed by the background writer
     state.writer.enqueue(payload).await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;

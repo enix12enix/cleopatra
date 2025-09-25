@@ -12,6 +12,7 @@ use axum::body::Body;
 use futures::{StreamExt, TryStreamExt};
 use futures::AsyncBufReadExt;
 
+use crate::db::check_execution_existing;
 use crate::models::{CreateTestResult, StreamResponse, FailedItem};
 use crate::state::AppState;
 
@@ -40,6 +41,15 @@ async fn stream_test_results(
     State(state): State<AppState>,
     body: Body,
 ) -> Result<Json<StreamResponse>, (StatusCode, String)> {
+    // Check if the execution exists
+    {
+        let mut conn = state.pool.acquire().await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        if !check_execution_existing(&mut *conn, execution_id).await {
+            let error_message = format!("Invalid execution_id [{}], no execution is found.", execution_id);
+            return Err((StatusCode::BAD_REQUEST, error_message));
+        }
+    }
+
     let stream = body
         .into_data_stream()
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
