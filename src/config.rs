@@ -10,6 +10,7 @@ pub struct Config {
     pub server: ServerConfig,
     pub database: DatabaseConfig,
     pub writer: WriterConfig,
+    pub auth: AuthConfig,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -34,12 +35,24 @@ pub struct WriterConfig {
     pub flush_interval_ms: u64,
 }
 
+#[derive(Debug, Deserialize, Clone)]
+pub struct AuthConfig {
+    #[serde(default = "default_auth_enabled")]
+    pub enabled: bool,
+    pub secret_path: Option<String>,
+    pub algorithm: Option<String>,
+}
+
 fn default_wal() -> bool {
     true
 }
 
 fn default_wal_autocheckpoint() -> i32 {
     1000
+}
+
+fn default_auth_enabled() -> bool {
+    false
 }
 
 impl Config {
@@ -49,6 +62,11 @@ impl Config {
         
         let config_str = fs::read_to_string(&config_path)?;
         let config: Config = toml::from_str(&config_str)?;
+        
+        // Validate auth config if auth is enabled
+        if config.auth.enabled && (config.auth.secret_path.is_none() || config.auth.algorithm.is_none()) {
+            return Err("Auth is enabled but secret_path and algorithm are required".into());
+        }
         
         Ok(config)
     }

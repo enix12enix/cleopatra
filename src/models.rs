@@ -126,6 +126,16 @@ pub struct FailedItem {
     pub raw_payload: Option<String>,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Claims {
+    pub sub: String, // user id
+    pub roles: Vec<String>, // user roles
+    pub exp: usize, // expiration timestamp
+}
+
+// for extracting auth user from JWT, not used now
+// pub struct AuthUser(pub Claims);
+
 #[derive(Debug, Serialize, Deserialize, sqlx::Type, Clone, PartialEq)]
 #[serde(rename_all = "UPPERCASE")]
 #[sqlx(type_name = "TEXT")]

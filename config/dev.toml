@@ -11,3 +11,8 @@ wal_autocheckpoint = 1000
 [writer]
 batch_size = 100
 flush_interval_ms = 500
+
+[auth]
+enabled = false
+secret_path = "public.pem"
+algorithm = "RS256"
