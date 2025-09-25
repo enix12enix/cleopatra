@@ -136,6 +136,14 @@ pub struct Claims {
 // for extracting auth user from JWT, not used now
 // pub struct AuthUser(pub Claims);
 
+#[derive(Debug, Serialize)]
+pub struct ErrorResponse {
+    pub(crate) error: String,
+    pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub field: Option<String>,
+}
+
 #[derive(Debug, Serialize, Deserialize, sqlx::Type, Clone, PartialEq)]
 #[serde(rename_all = "UPPERCASE")]
 #[sqlx(type_name = "TEXT")]

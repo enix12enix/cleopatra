@@ -10,6 +10,7 @@ mod config;
 mod writer;
 mod state;
 mod auth;
+mod error;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -24,6 +25,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             std::sync::Arc::new(state.clone()),
             auth::jwt_auth_middleware
         ))
+        .layer(axum::middleware::from_fn(error::handle_unexpected_errors))
         .with_state(state);
 
     // Run application with graceful shutdown
