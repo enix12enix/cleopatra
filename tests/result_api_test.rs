@@ -6,7 +6,6 @@ use cleopatra::models::Status;
 
 #[tokio::test]
 async fn test_create_result() {
-    // First, create an execution to associate the result with
     let create_execution_json = r#"{
         "name": "Test Execution for Result",
         "tag": "result-test",
@@ -20,7 +19,6 @@ async fn test_create_result() {
     
     let execution_id = execution.id.expect("Execution should have an ID");
     
-    // Now create a test result using the helper function
     let create_result_json = format!(r#"{{
         "execution_id": {},
         "name": "test_login_functionality",
@@ -43,7 +41,6 @@ async fn test_create_result() {
 
 #[tokio::test]
 async fn test_get_result_by_id() {
-    // First, create an execution
     let create_execution_body = r#"{
         "name": "Test Execution for Get Result",
         "tag": "result-test",
@@ -57,7 +54,6 @@ async fn test_get_result_by_id() {
     
     let execution_id = execution.id.expect("Execution should have an ID");
     
-    // Create a test result
     let create_result_json = format!(r#"{{
         "execution_id": {},
         "name": "test_get_result",
@@ -77,15 +73,12 @@ async fn test_get_result_by_id() {
 
     common::helper::wait();
     
-    // Call get_results to get all results for this execution
     let results = common::helper::get_results(execution_id).await
         .expect("Failed to get results by execution ID")
         .expect("Expected results to be found");
     
-    // Verify that we got exactly one result
     assert_eq!(results.len(), 1);
     
-    // Verify the result matches what we created
     let result = &results[0];
     assert_eq!(result.execution_id, execution_id);
     assert_eq!(result.name, "test_get_result");
@@ -100,7 +93,6 @@ async fn test_get_result_by_id() {
 
 #[tokio::test]
 async fn test_upsert_result() {
-    // First, create an execution
     let create_execution_body = r#"{
         "name": "Test Execution for Upsert",
         "tag": "result-test",
@@ -114,7 +106,6 @@ async fn test_upsert_result() {
     
     let execution_id = execution.id.expect("Execution should have an ID");
     
-    // Create a test result for the first time
     let create_result_json = format!(r#"{{
         "execution_id": {},
         "name": "test_upsert_functionality",
@@ -152,15 +143,12 @@ async fn test_upsert_result() {
 
     common::helper::wait();
     
-    // Call get_results to get all results for this execution
     let results = common::helper::get_results(execution_id).await
         .expect("Failed to get results by execution ID")
         .expect("Expected results to be found");
     
-    // Verify that we got exactly one result
     assert_eq!(results.len(), 1);
     
-    // Verify the result matches what we created
     let result = &results[0];
     assert_eq!(result.execution_id, execution_id);
     assert_eq!(result.name, "test_upsert_functionality");
@@ -171,4 +159,58 @@ async fn test_upsert_result() {
     assert_eq!(result.log.as_ref().unwrap(), "Second run");
     assert!(result.screenshot_id.is_none());
     assert_eq!(result.created_by.as_ref().unwrap(), "test-user");
+}
+
+#[tokio::test]
+async fn test_update_result_status() {
+    let create_execution_json = r#"{
+        "name": "Test Execution for Update Status",
+        "tag": "status-test",
+        "created_by": "test-user",
+        "time_created": 1234567890
+    }"#;
+    
+    let execution = common::helper::create_execution(create_execution_json).await
+        .expect("Failed to create execution")
+        .expect("Expected execution to be created");
+    
+    let execution_id = execution.id.expect("Execution should have an ID");
+    
+    let create_result_json = format!(r#"{{
+        "execution_id": {},
+        "name": "test_update_status",
+        "platform": "api",
+        "description": "Initial status test",
+        "status": "P",
+        "execution_time": 1000,
+        "log": "Initial run",
+        "created_by": "test-user",
+        "time_created": 1234567891
+    }}"#, execution_id);
+    
+    common::helper::create_result(&create_result_json).await
+        .expect("Failed to create test result")
+        .expect("Expected test result to be created");
+    
+    common::helper::wait();
+    
+    let results = common::helper::get_results(execution_id).await
+        .expect("Failed to get results by execution ID")
+        .expect("Expected results to be found");
+    
+    assert_eq!(results.len(), 1);
+    let initial_result = &results[0];
+    assert_eq!(initial_result.status, Status::P);
+    let result_id = initial_result.id.expect("Result should have an ID");
+    
+    common::helper::update_test_result(result_id, "F".to_string()).await
+        .expect("Failed to update test result status");
+    
+    common::helper::wait();
+    
+    let updated_result = common::helper::get_result(result_id).await
+        .expect("Failed to get updated result")
+        .expect("Expected result to be found");
+    
+    assert_eq!(updated_result.status, Status::F);
 }

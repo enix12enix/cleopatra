@@ -19,16 +19,8 @@ Strive to balance performance, ease of use, and functionality.
 
 3. Project structure
 
-```text
-cleopatra/
-├── Cargo.toml
-├── Makefile
-├── migrations/
-│   └── cleopatra.sql
-├── config/
-│   ├── dev.toml
-│   └── prod.toml
-└── src/
+```textmate
+├── src/
     ├── main.rs
     ├── config.rs  // configuration handling
     ├── db.rs      // database initialization
@@ -43,8 +35,11 @@ cleopatra/
 └── tests/
     ├── test_config.toml     // test configuration
     ├── common/
-    │   └── test_config.rs   // test configuration loader
+    │   ├── test_config.rs   // test configuration loader
+    │   └── helper.rs        // test helper functions
     └── execution_api_test.rs  // integration tests
+    └── result_api_test.rs     // result API integration tests
+    └── stream_api_test.rs     // stream API integration tests
 ```
 
 ## Database Design
@@ -100,6 +95,7 @@ We have two kind API.
 | [GET /api/execution/{id}/result](#get-apiexecutionidtests)  | get all of tests by execution id, excluding log field | 200 |
 | [POST /api/result](#post-apitest)  | publish a test result | 201 |
 | [GET /api/result](#get-apiresultid)  | get test result by id | 200 |
+| [PATCH /api/tests/{id}/status](#patch-apitestsidstatus)  | update test result status by id | 204 |
 
 #### POST /api/execution
 
@@ -259,6 +255,7 @@ response
 #### GET /api/result/{id}
 
 response
+response
 
 ```json
 {
@@ -276,7 +273,16 @@ response
 }
 ```
 
+#### PATCH /api/tests/{id}/status
 
+Change status of test result
+
+request
+```json
+{
+    "status": "P" // should be P/F/I
+}
+```
 
 ###  Html Stream API
 

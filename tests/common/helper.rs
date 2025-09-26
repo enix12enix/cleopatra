@@ -10,8 +10,7 @@ use anyhow::Result;
 /// Returns a vector of result objects, or None if no results are found
 #[allow(dead_code)]
 pub async fn get_results(execution_id: i64) -> Result<Option<Vec<TestResult>>> {
-    let config = crate::common::test_config::TestConfig::from_file()
-        .map_err(|e| anyhow::anyhow!("Failed to load test config: {}", e))?;
+    let config = crate::common::test_config::get_config()?;
     let url = config.get_execution_result_api_url(execution_id);
     
     let client = reqwest::Client::new();
@@ -50,10 +49,8 @@ pub async fn get_results(execution_id: i64) -> Result<Option<Vec<TestResult>>> {
 /// Returns the test result object, or None if no result is found
 #[allow(dead_code)]
 pub async fn get_result(result_id: i64) -> Result<Option<TestResult>> {
-    let config = crate::common::test_config::TestConfig::from_file()
-        .map_err(|e| anyhow::anyhow!("Failed to load test config: {}", e))?;
+    let config = crate::common::test_config::get_config()?;
     
-    // Make the HTTP request
     let client = reqwest::Client::new();
     let response = client
         .get(&config.get_result_by_id_api_url(result_id))
@@ -75,8 +72,7 @@ pub async fn get_result(result_id: i64) -> Result<Option<TestResult>> {
 
 #[allow(dead_code)]
 pub async fn create_execution(execution_json: &str) -> Result<Option<Execution>> {
-    let config = crate::common::test_config::TestConfig::from_file()
-        .map_err(|e| anyhow::anyhow!("Failed to load test config: {}", e))?;
+    let config = crate::common::test_config::get_config()?;
     let _parsed: serde_json::Value = serde_json::from_str(execution_json)?;
     
     let client = reqwest::Client::new();
@@ -102,8 +98,7 @@ pub async fn create_execution(execution_json: &str) -> Result<Option<Execution>>
 /// Returns a list of executions
 #[allow(dead_code)]
 pub async fn get_executions() -> Result<ExecutionListResponse> {
-    let config = crate::common::test_config::TestConfig::from_file()
-        .map_err(|e| anyhow::anyhow!("Failed to load test config: {}", e))?;
+    let config = crate::common::test_config::get_config()?;
     
     let client = reqwest::Client::new();
     let response = client
@@ -127,10 +122,8 @@ pub async fn get_executions() -> Result<ExecutionListResponse> {
 /// Returns a list of executions
 #[allow(dead_code)]
 pub async fn get_executions_with_filters(filters: &HashMap<String, String>) -> Result<ExecutionListResponse> {
-    let config = crate::common::test_config::TestConfig::from_file()
-        .map_err(|e| anyhow::anyhow!("Failed to load test config: {}", e))?;
+    let config = crate::common::test_config::get_config()?;
     
-    // Build the URL with query parameters
     let base_url = config.get_executions_api_url();
     let mut url = base_url;
     
@@ -163,8 +156,7 @@ pub async fn get_executions_with_filters(filters: &HashMap<String, String>) -> R
 
 #[allow(dead_code)]
 pub async fn create_result(request_json: &str) -> Result<Option<CreateTestResultResponse>> {
-    let config = crate::common::test_config::TestConfig::from_file()
-        .map_err(|e| anyhow::anyhow!("Failed to load test config: {}", e))?;
+    let config = crate::common::test_config::get_config()?;
     let _parsed: serde_json::Value = serde_json::from_str(request_json)?;
     
     let client = reqwest::Client::new();
@@ -191,13 +183,10 @@ pub async fn create_result(request_json: &str) -> Result<Option<CreateTestResult
 /// Returns the stream response, or None if creation failed
 #[allow(dead_code)]
 pub async fn stream_create_results(execution_id: i64, results: Vec<&str>) -> Result<Option<StreamResponse>> {
-    let config = crate::common::test_config::TestConfig::from_file()
-        .map_err(|e| anyhow::anyhow!("Failed to load test config: {}", e))?;
+    let config = crate::common::test_config::get_config()?;
     
-    // Join the JSON strings with newlines to create NDJSON format
     let ndjson_body = results.join("\n");
     
-    // Make the HTTP request
     let client = reqwest::Client::new();
     let response = client
         .post(&config.get_stream_api_url(execution_id))
@@ -211,6 +200,32 @@ pub async fn stream_create_results(execution_id: i64, results: Vec<&str>) -> Res
         let json: Value = response.json().await?;
         let stream_response: StreamResponse = serde_json::from_value(json)?;
         Ok(Some(stream_response))
+    } else {
+        let error_text = response.text().await?;
+        anyhow::bail!("API request failed with status {}: {}", status, error_text)
+    }
+}
+
+/// Update a test result status by calling the API
+#[allow(dead_code)]
+pub async fn update_test_result(result_id: i64, status: String) -> Result<()> {
+    let config = crate::common::test_config::get_config()?;
+    
+    let payload = serde_json::json!({
+        "status": status
+    });
+    
+    let client = reqwest::Client::new();
+    let response = client
+        .patch(&config.get_test_result_status_api_url(result_id))
+        .header("Content-Type", "application/json")
+        .json(&payload)
+        .send()
+        .await?;
+    
+    let status = response.status();
+    if status.is_success() {
+        Ok(())
     } else {
         let error_text = response.text().await?;
         anyhow::bail!("API request failed with status {}: {}", status, error_text)

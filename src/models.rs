@@ -152,3 +152,19 @@ pub enum Status {
     F, // failed
     I, // ignored
 }
+
+impl Status {
+    pub fn value_of(val: &str) -> Result<Status, String> {
+        match val {
+            "P" | "p" => Ok(Status::P),
+            "F" | "f" => Ok(Status::F),
+            "I" | "i" => Ok(Status::I),
+            _ => Err(format!("Invalid status: {}. Expected I, P, or F", val)),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UpdateStatusRequest {
+    pub status: String,
+}

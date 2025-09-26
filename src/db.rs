@@ -108,3 +108,25 @@ pub async fn check_execution_existing(
         Err(_) => false,
     }
 }
+
+/// Update the status of a test result by its ID
+pub async fn update_test_result_status(
+    conn: &mut SqliteConnection,
+    id: i64,
+    status: &crate::models::Status,
+) -> Result<TestResult> {
+    let test_result = sqlx::query_as::<_, TestResult>(
+        r#"
+        UPDATE test_result 
+        SET status = ?
+        WHERE id = ?
+        RETURNING *
+        "#
+    )
+    .bind(status)
+    .bind(id)
+    .fetch_one(conn)
+    .await?;
+
+    Ok(test_result)
+}
