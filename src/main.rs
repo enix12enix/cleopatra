@@ -1,24 +1,26 @@
 // src/main.rs
 use axum::Router;
-use std::net::SocketAddr;
+use std::{net::SocketAddr, sync::Arc};
 use tokio;
 
-mod db;
+use crate::daemon::writer::WriterManager;
+
+mod database;
 mod models;
 mod routes;
 mod config;
-mod writer;
+mod daemon;
 mod state;
 mod auth;
 mod error;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let state = init_state().await?;
+    // build app state
+    let state = state::init_state().await?;
+    let writer_for_shutdown = state.writer_manager.clone();
 
-    let writer_for_shutdown = state.writer.clone();
-
-    // Build our application by composing routes
+    // Build app with routers
     let app = Router::new()
         .merge(routes::routes())
         .layer(axum::middleware::from_fn_with_state(
@@ -40,35 +42,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-async fn init_state() -> Result<crate::state::AppState, Box<dyn std::error::Error>> {
-    let config = config::Config::from_env()?;
 
-    let (main_pool, writer_pool) = db::init_db(&config).await?;
-
-    let writer = writer::start_writer(&config.writer, writer_pool).await;
-
-    let auth_provider = if config.auth.enabled {
-        let provider = auth::AuthProvider::new(&config)?;
-        Some(std::sync::Arc::new(provider))
-    } else {
-        None
-    };
-
-    let state = crate::state::AppState { 
-        pool: main_pool, 
-        writer,
-        auth_provider,
-    };
-
-    Ok(state)
-}
 
 // flush data before shutdown
-async fn shutdown_signal(writer: writer::Writer) {
+async fn shutdown_signal(writer_manager: Arc<WriterManager>) {
     if let Err(e) = tokio::signal::ctrl_c().await {
         eprintln!("Failed to listen for shutdown signal: {}", e);
         return;
     }
     println!("Shutdown signal received, flushing writer...");
-    writer.shutdown();
+    writer_manager.shutdown_all();
 }

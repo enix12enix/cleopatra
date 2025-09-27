@@ -9,7 +9,7 @@ use axum::{
     Router,
 };
 
-use crate::db::{check_execution_existing, update_test_result_status as db_update_test_result_status};
+use crate::{daemon::writer::WriterName, database::{check_execution_existing, update_test_result_status as db_update_test_result_status}};
 use crate::models::{TestResult, CreateTestResult, CreateTestResultResponse, Status, UpdateStatusRequest};
 use crate::state::AppState;
 
@@ -34,7 +34,7 @@ async fn create_test_result(
     }
 
     // Enqueue the result to be processed by the background writer
-    state.writer.enqueue(payload).await
+    state.writer_manager.enqueue(WriterName::Main, Box::new(payload)).await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
     
     let response = CreateTestResultResponse {

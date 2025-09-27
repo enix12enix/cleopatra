@@ -7,3 +7,7 @@ url = "sqlite:cleopatra.db"
 max_connections = 5
 wal = true
 wal_autocheckpoint = 1000
+
+[writers.main]
+batch_size = 100
+flush_interval_ms = 500

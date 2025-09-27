@@ -8,7 +8,7 @@ max_connections = 5
 wal = true
 wal_autocheckpoint = 1000
 
-[writer]
+[writers.main]
 batch_size = 100
 flush_interval_ms = 500
 

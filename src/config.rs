@@ -2,6 +2,7 @@
 // Configuration handling module
 
 use serde::Deserialize;
+use std::collections::HashMap;
 use std::env;
 use std::fs;
 
@@ -9,7 +10,7 @@ use std::fs;
 pub struct Config {
     pub server: ServerConfig,
     pub database: DatabaseConfig,
-    pub writer: WriterConfig,
+    pub writers: HashMap<String, WriterConfig>,
     pub auth: AuthConfig,
 }
 

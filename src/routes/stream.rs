@@ -12,7 +12,7 @@ use axum::body::Body;
 use futures::{StreamExt, TryStreamExt};
 use futures::AsyncBufReadExt;
 
-use crate::db::check_execution_existing;
+use crate::{daemon::writer::WriterName, database::check_execution_existing};
 use crate::models::{CreateTestResult, StreamResponse, FailedItem};
 use crate::state::AppState;
 
@@ -73,7 +73,7 @@ async fn stream_test_results(
                 match payload {
                     Ok(payload) => {
                         // Enqueue the result to be processed by the background writer
-                        match state.writer.enqueue(payload).await {
+                        match state.writer_manager.enqueue(WriterName::Main, Box::new(payload)).await {
                             Ok(_) => enqueued += 1,
                             Err(e) => {
                                 failed += 1;

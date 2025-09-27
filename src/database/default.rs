@@ -1,5 +1,5 @@
 // src/db.rs
-// Initialize database configuration here
+// Main database for test result 
 
 use sqlx::{sqlite::SqlitePool, sqlite::SqlitePoolOptions, Result, SqliteConnection};
 use crate::config::Config;
@@ -44,7 +44,7 @@ pub async fn init_db(config: &Config) -> Result<(SqlitePool, SqlitePool)> {
         .await?;
 
     // Run migrations on both pools
-    sqlx::query(include_str!("../migrations/cleopatra.sql"))
+    sqlx::query(include_str!("../../migrations/cleopatra.sql"))
         .execute(&main_pool)
         .await?;
 
@@ -57,8 +57,8 @@ pub async fn init_db(config: &Config) -> Result<(SqlitePool, SqlitePool)> {
 pub async fn upsert_test_result(
     conn: &mut SqliteConnection,
     payload: &CreateTestResult,
-) -> Result<TestResult> {
-    let test_result = sqlx::query_as::<_, TestResult>(
+) -> Result<()> {
+    sqlx::query(
         r#"
         INSERT INTO test_result (
             execution_id, name, platform, description, status,
@@ -73,7 +73,6 @@ pub async fn upsert_test_result(
             counter = test_result.counter + 1,
             log = excluded.log,
             screenshot_id = excluded.screenshot_id
-        RETURNING *
         "#
     )
     .bind(payload.execution_id)
@@ -86,10 +85,10 @@ pub async fn upsert_test_result(
     .bind(&payload.screenshot_id)
     .bind(&payload.created_by.as_deref())
     .bind(payload.time_created)
-    .fetch_one(conn)
+    .execute(conn)
     .await?;
 
-    Ok(test_result)
+    Ok(())
 }
 
 /// Check if an execution exists by its ID
