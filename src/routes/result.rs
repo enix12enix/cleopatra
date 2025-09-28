@@ -9,7 +9,7 @@ use axum::{
     Router,
 };
 
-use crate::{daemon::writer::WriterName, database::{check_execution_existing, update_test_result_status as db_update_test_result_status}};
+use crate::{background::writer::WriterName, database::{check_execution_existing, update_test_result_status as db_update_test_result_status}};
 use crate::models::{TestResult, CreateTestResult, CreateTestResultResponse, Status, UpdateStatusRequest};
 use crate::state::AppState;
 

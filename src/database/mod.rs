@@ -1,4 +1,4 @@
 // src/database/mod.rs
 
-mod default;
+pub mod default;
 pub use default::*;

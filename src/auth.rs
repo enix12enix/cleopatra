@@ -8,8 +8,7 @@ use axum::{
 use jsonwebtoken::{decode, DecodingKey, Validation, Algorithm, TokenData};
 use std::{fs, sync::Arc};
 
-use crate::{models::{Claims}, state::AppState, config::Config};
-
+use crate::{models::Claims, state::AppState, config::Config};
 
 #[async_trait]
 pub trait JwtVerifier: Send + Sync {
@@ -74,9 +73,10 @@ pub async fn jwt_auth_middleware(
     next: Next,
 ) -> Result<Response, (StatusCode, String)> {
     // If auth provider is None, bypass JWT validation
-    if state.auth_provider.is_none() {
-        return Ok(next.run(request).await);
-    }
+    let auth_provider = match &state.auth_provider {
+        Some(provider) => provider,
+        None => return Ok(next.run(request).await),
+    };
 
     // Extract the token from the Authorization header
     let auth_header = request
@@ -92,51 +92,8 @@ pub async fn jwt_auth_middleware(
     let token = auth_header.trim_start_matches("Bearer ").trim();
 
     // Verify the token using the auth provider
-    let auth_provider = state.auth_provider.as_ref().unwrap();
     match auth_provider.verify(token).await {
-        Ok(_token_data) => {
-            // Token is valid, continue with the request
-            Ok(next.run(request).await)
-        }
-        Err((_status, error)) => {
-            // Return the error as a string
-            Err((StatusCode::UNAUTHORIZED, error))
-        }
+        Ok(_token_data) => Ok(next.run(request).await),
+        Err((_status, error)) => Err((StatusCode::UNAUTHORIZED, error)),
     }
 }
-
-// // the function to extract AuthUser from JWT. Not used now.
-// 
-// #[async_trait]
-// impl FromRequestParts<Arc<AppState>> for AuthUser {
-//     type Rejection = (StatusCode, String);
-
-//     async fn from_request_parts(
-//         parts: &mut Parts,
-//         state: &Arc<AppState>,
-//     ) -> Result<Self, Self::Rejection> {
-//         let Some(provider) = &state.auth_provider else {
-//             let claims = Claims {
-//                 sub: DEFAULT_CLAIMS.sub.into(),
-//                 roles: DEFAULT_CLAIMS.roles.iter().map(|s| s.to_string()).collect(),
-//                 exp: DEFAULT_CLAIMS.exp,
-//             };
-//             return Ok(AuthUser(claims));
-//         };
-
-//         let auth_header = parts
-//             .headers
-//             .get("Authorization")
-//             .and_then(|v| v.to_str().ok())
-//             .ok_or((StatusCode::UNAUTHORIZED, "Missing Authorization".into()))?;
-
-//         if !auth_header.starts_with("Bearer ") {
-//             return Err((StatusCode::UNAUTHORIZED, "Invalid token type".into()));
-//         }
-
-//         let token = auth_header.trim_start_matches("Bearer ");
-
-//         let token_data = provider.verify(token).await?;
-//         Ok(AuthUser(token_data.claims))
-//     }
-// }

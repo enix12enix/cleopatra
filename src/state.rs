@@ -2,42 +2,52 @@
 // Application state module
 
 use std::sync::Arc;
-
 use sqlx::SqlitePool;
 use crate::auth::{self, AuthProvider};
+use crate::config::Config;
 use crate::{config, database};
-use crate::daemon::writer::{DefaultWriter, Writer, WriterManager, WriterName};
+use crate::background::writer::{DefaultWriter, Writer, WriterManager, WriterName};
 
 #[derive(Clone)]
 pub struct AppState {
+    pub config: Arc<Config>,
     pub pool: SqlitePool,
     pub writer_manager: Arc<WriterManager>,
     pub auth_provider: Option<Arc<AuthProvider>>,
 }
 
-pub async fn init_state() -> Result<crate::state::AppState, Box<dyn std::error::Error>> {
-    let config = config::Config::from_env()?;
+impl AppState {
+    #[allow(dead_code)]
+    pub fn shared(self) -> Arc<Self> {
+        Arc::new(self)
+    }
+}
 
-    // init sqlite connection pool
+/// Initialize the application state
+pub async fn init_state() -> Result<AppState, Box<dyn std::error::Error>> {
+    // Load configuration from environment / file
+    let config = config::Config::from_env()?;
+    let config = Arc::new(config); // wrap config in Arc
+
+    // Initialize SQLite connection pools
     let (main_pool, writer_pool) = database::init_db(&config).await?;
 
-    // init write manager
+    // Initialize writer manager
     let mut writer_manager = WriterManager::new();
     let default_writer = DefaultWriter::new(&config, writer_pool).await;
     writer_manager.insert(WriterName::Main, default_writer);
 
-    // init auth provider
+    // Initialize auth provider if enabled
     let auth_provider = if config.auth.enabled {
-        let provider = auth::AuthProvider::new(&config)?;
-        Some(Arc::new(provider))
+        Some(Arc::new(auth::AuthProvider::new(&config)?))
     } else {
         None
     };
-    let state = AppState { 
-        pool: main_pool, 
+
+    Ok(AppState { 
+        config,
+        pool: main_pool,
         writer_manager: Arc::new(writer_manager),
         auth_provider,
-    };
-
-    Ok(state)
+    })
 }

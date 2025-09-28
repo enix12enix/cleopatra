@@ -129,3 +129,32 @@ pub async fn update_test_result_status(
 
     Ok(test_result)
 }
+
+pub async fn clean_up_db(pool: &SqlitePool, days: u32) -> anyhow::Result<()> {
+    let mut tx = pool.begin().await?;
+
+    // Delete execution records older than specified days first
+    sqlx::query(
+        r#"DELETE FROM execution 
+           WHERE time_created < (strftime('%s', 'now', ?))"#
+    )
+    .bind(format!("-{} days", days))
+    .execute(&mut *tx)
+    .await?;
+
+    // Then delete test_result records older than specified days 
+    sqlx::query(
+        r#"DELETE FROM test_result 
+           WHERE time_created < (strftime('%s', 'now', ?))"#
+    )
+    .bind(format!("-{} days", days))
+    .execute(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+
+    sqlx::query("VACUUM").execute(pool).await?;
+    sqlx::query("ANALYZE").execute(pool).await?;
+
+    Ok(())
+}

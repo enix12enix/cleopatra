@@ -12,7 +12,7 @@ use axum::body::Body;
 use futures::{StreamExt, TryStreamExt};
 use futures::AsyncBufReadExt;
 
-use crate::{daemon::writer::WriterName, database::check_execution_existing};
+use crate::{background::writer::WriterName, database::check_execution_existing};
 use crate::models::{CreateTestResult, StreamResponse, FailedItem};
 use crate::state::AppState;
 

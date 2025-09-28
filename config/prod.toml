@@ -11,3 +11,8 @@ wal_autocheckpoint = 1000
 [writers.main]
 batch_size = 100
 flush_interval_ms = 500
+
+[database_maintainence.main]
+enabled = false
+data_retention_days = 90
+cron = "0 0 3 * * Sun"

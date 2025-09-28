@@ -3,35 +3,39 @@ use axum::Router;
 use std::{net::SocketAddr, sync::Arc};
 use tokio;
 
-use crate::daemon::writer::WriterManager;
+use crate::background::{scheduler::start_scheduler, writer::WriterManager};
 
 mod database;
 mod models;
 mod routes;
 mod config;
-mod daemon;
+mod background;
 mod state;
 mod auth;
 mod error;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // build app state
+    // Build app state
     let state = state::init_state().await?;
-    let writer_for_shutdown = state.writer_manager.clone();
+    let state_arc = Arc::new(state);
+    let writer_for_shutdown = state_arc.writer_manager.clone();
 
-    // Build app with routers
+    // Start scheduler
+    start_scheduler(Arc::clone(&state_arc)).await?;
+
+    // Build app with routers and middleware
     let app = Router::new()
         .merge(routes::routes())
         .layer(axum::middleware::from_fn_with_state(
-            std::sync::Arc::new(state.clone()),
-            auth::jwt_auth_middleware
+            Arc::clone(&state_arc),
+            auth::jwt_auth_middleware, // expects State<Arc<AppState>>
         ))
         .layer(axum::middleware::from_fn(error::handle_unexpected_errors))
-        .with_state(state);
+        .with_state((*state_arc).clone());
 
     // Run application with graceful shutdown
-    let config = config::Config::from_env()?;
+    let config = &state_arc.config;
     let addr: SocketAddr = format!("{}:{}", config.server.host, config.server.port).parse()?;
     println!("Listening on {}", addr);
 
@@ -42,9 +46,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-
-
-// flush data before shutdown
+// Flush data before shutdown
 async fn shutdown_signal(writer_manager: Arc<WriterManager>) {
     if let Err(e) = tokio::signal::ctrl_c().await {
         eprintln!("Failed to listen for shutdown signal: {}", e);

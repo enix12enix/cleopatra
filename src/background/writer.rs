@@ -13,17 +13,15 @@ use crate::models::CreateTestResult;
 #[async_trait]
 pub trait Writer: Send + Sync + 'static {
     type Message: Send + 'static;
-    type Conn: Send + 'static;
-    type Datasource: Clone + Send + 'static;
+    type Datasource: Clone + Send + Sync + 'static;
     type Error: std::fmt::Display + Send + 'static;
 
     fn sender(&self) -> &Sender<Self::Message>;
     fn config_name() -> &'static str;
 
-    async fn get_connection(&self, ds: &Self::Datasource) -> Self::Conn;
     async fn flush_db(
         &self,
-        conn: &mut Self::Conn,
+        ds: &Self::Datasource,
         buffer: &[Self::Message],
     ) -> Result<(), Self::Error>;
 
@@ -44,7 +42,7 @@ pub trait Writer: Send + Sync + 'static {
     }
 }
 
-/// --- Start the  writer loop
+/// --- Start the writer loop
 pub async fn start_writer_loop<W>(
     writer: Arc<W>,
     mut rx: Receiver<W::Message>,
@@ -55,7 +53,6 @@ pub async fn start_writer_loop<W>(
     W: Writer + 'static,
 {
     tokio::spawn(async move {
-        let mut conn = writer.get_connection(&datasource).await;
         let flush_interval = Duration::from_millis(flush_interval_ms);
         let mut buffer = Vec::with_capacity(batch_size);
 
@@ -66,7 +63,7 @@ pub async fn start_writer_loop<W>(
                         Some(item) => {
                             buffer.push(item);
                             if buffer.len() >= batch_size {
-                                if let Err(e) = writer.flush_db(&mut conn, &buffer).await {
+                                if let Err(e) = writer.flush_db(&datasource, &buffer).await {
                                     eprintln!("Error flushing: {}", e);
                                 }
                                 buffer.clear();
@@ -74,7 +71,7 @@ pub async fn start_writer_loop<W>(
                         }
                         None => {
                             if !buffer.is_empty() {
-                                let _ = writer.flush_db(&mut conn, &buffer).await;
+                                let _ = writer.flush_db(&datasource, &buffer).await;
                             }
                             println!("Writer shutdown complete");
                             break;
@@ -82,7 +79,7 @@ pub async fn start_writer_loop<W>(
                     }
                 }
                 _ = sleep(flush_interval), if !buffer.is_empty() => {
-                    if let Err(e) = writer.flush_db(&mut conn, &buffer).await {
+                    if let Err(e) = writer.flush_db(&datasource, &buffer).await {
                         eprintln!("Error flushing: {}", e);
                     }
                     buffer.clear();
@@ -101,7 +98,6 @@ pub struct DefaultWriter {
 #[async_trait]
 impl Writer for DefaultWriter {
     type Message = CreateTestResult;
-    type Conn = sqlx::pool::PoolConnection<Sqlite>;
     type Datasource = Pool<Sqlite>;
     type Error = sqlx::Error;
 
@@ -134,30 +130,30 @@ impl Writer for DefaultWriter {
         Arc::try_unwrap(writer).unwrap_or_else(|arc| (*arc).clone())
     }
 
-    async fn get_connection(&self, ds: &Self::Datasource) -> Self::Conn {
-        ds.acquire().await.expect("Failed to acquire DB connection")
-    }
-
+    /// --- Transactional flush
     async fn flush_db(
         &self,
-        conn: &mut Self::Conn,
+        ds: &Self::Datasource,
         buffer: &[Self::Message],
     ) -> Result<(), Self::Error> {
         if buffer.is_empty() {
             return Ok(());
         }
 
-        // Begin transaction
-        let mut tx: Transaction<'_, Sqlite> = conn.begin().await?;
-
         println!("flush data to db :: {}", buffer.len());
 
-        // Upsert each item in the transaction
+        // Acquire a connection from the pool
+        let mut conn = ds.acquire().await?;
+
+        // Start a transaction
+        let mut tx: Transaction<'_, Sqlite> = conn.begin().await?;
+
+        // Execute all upserts inside this transaction
         for item in buffer {
             upsert_test_result(&mut tx, item).await?;
         }
 
-        // Commit transaction after the loop
+        // Commit transaction
         tx.commit().await?;
 
         Ok(())
@@ -219,13 +215,10 @@ impl WriterManager {
         let writer = self.writers.get(&name).ok_or("Writer not found")?;
         writer.enqueue_boxed(message).await
     }
-    
-    
 
     pub fn shutdown_all(&self) {
         for w in self.writers.values() {
             w.shutdown();
         }
     }
-
 }

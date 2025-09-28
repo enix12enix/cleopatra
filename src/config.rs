@@ -12,6 +12,7 @@ pub struct Config {
     pub database: DatabaseConfig,
     pub writers: HashMap<String, WriterConfig>,
     pub auth: AuthConfig,
+    pub data_retention: HashMap<String, DataRetentionConfig>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -44,6 +45,16 @@ pub struct AuthConfig {
     pub algorithm: Option<String>,
 }
 
+#[derive(Debug, Deserialize, Clone)]
+pub struct DataRetentionConfig {
+    #[serde(default = "default_maintenance_enabled")]
+    pub enabled: bool,
+    #[serde(default = "default_data_retention_days")]
+    pub period_in_day: u32,
+    #[serde(default = "default_maintenance_cron")]
+    pub cron: String,
+}
+
 fn default_wal() -> bool {
     true
 }
@@ -56,10 +67,22 @@ fn default_auth_enabled() -> bool {
     false
 }
 
+fn default_maintenance_enabled() -> bool {
+    false
+}
+
+fn default_data_retention_days() -> u32 {
+    90
+}
+
+fn default_maintenance_cron() -> String {
+    "0 0 3 * * Sun".to_string()
+}
+
 impl Config {
     pub fn from_env() -> Result<Self, Box<dyn std::error::Error>> {
         let env = env::var("APP_ENV").unwrap_or_else(|_| "dev".to_string());
-        let config_path = format!("config/{}.toml", env);
+        let config_path = env::var("APP_CONFIG").unwrap_or_else(|_| format!("config/{}.toml", env));
         
         let config_str = fs::read_to_string(&config_path)?;
         let config: Config = toml::from_str(&config_str)?;

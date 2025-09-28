@@ -16,3 +16,9 @@ flush_interval_ms = 500
 enabled = false
 secret_path = "public.pem"
 algorithm = "RS256"
+
+[data_retention.main]
+enabled = true
+period_in_day = 90
+cron = "0 0 3 * * Sun"
+
