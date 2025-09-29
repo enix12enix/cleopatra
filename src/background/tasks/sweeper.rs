@@ -5,11 +5,11 @@ use tokio::task::JoinHandle;
 use crate::{background::scheduler::{new_task, ScheduledTask}, config::DataRetentionConfig, database, state::AppState};
 
 #[async_trait::async_trait]
-pub trait Datasource: Send + Sync {
+trait Datasource: Send + Sync {
     async fn clean_up(&self, days: u32) -> Result<()>;
 }
 
-pub async fn clean_up_data<T>(ds: &T, config: &DataRetentionConfig)
+async fn clean_up_data<T>(ds: &T, config: &DataRetentionConfig)
 where
     T: Datasource,
 {

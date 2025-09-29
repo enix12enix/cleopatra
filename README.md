@@ -1,46 +1,114 @@
 # Cleopatra
 - [Introduction](#introduction)
-- [Technical Stack](#technical-stack)
+- [Technical Overview](#technical-overview)
 - [Database Design](#database-design)
 - [API Design](#api-design)
 
 
 ## Introduction
 
-The backend service for a lightweight test result management that works out of the box.
+A lightweight Rust backend that forcus on ingestion and retrieval of automation test results rather tham a full manual-test workflow.
 
-Strive to balance performance, ease of use, and functionality.
+- Very small footprint <Rust binary + SQLite(WAL)> - easy to run locally or inside CI containers. Good for teams wanting result capture without heavy infra.
 
-## Technical Stack
+  - Minimal ops: no heavy db cluster, no TCM server setup, no multi-tier infra.
 
-1. Build the service with Rust Axum (Axum version 0.7)
+  - Fast CI integration: test runners push results immediately after test completion.
 
-2. Database is Sqlite3 + WAL
+  - Easy maintainable: one binary, simple backup of SQLite file, WAL keeps things safe.
 
-3. Project structure
+- Designed for automated ingestion (REST + NDJSON stream) so it integrates well with test automation pipelines that can push results directly
 
-```textmate
-├── src/
-    ├── main.rs
-    ├── config.rs  // configuration handling
-    ├── db.rs      // database initialization
-    ├── models.rs  // data models
-    ├── writer.rs  // background writer for batch processing
-    └── routes/
-        ├── mod.rs     // route module definitions
-        ├── execution.rs  // execution REST API
-        ├── result.rs     // test result REST API
-        ├── stream.rs     // streaming API
-        └── utils.rs      // utility functions
-└── tests/
-    ├── test_config.toml     // test configuration
-    ├── common/
-    │   ├── test_config.rs   // test configuration loader
-    │   └── helper.rs        // test helper functions
-    └── execution_api_test.rs  // integration tests
-    └── result_api_test.rs     // result API integration tests
-    └── stream_api_test.rs     // stream API integration tests
-```
+- Clean, minimal data model which is useful when you only need execution-level grouping + per-test result storage.
+
+
+## Technical Overview
+
+- Build the service with Rust Axum (Axum version 0.7)
+
+- Database is Sqlite3 + WAL
+
+- Project structure
+
+    ```textmate
+    ├── src/
+        ├── main.rs
+        ├── config.rs     // configuration handling
+        ├── database/     // database initialization and connections
+        │   ├── mod.rs
+        │   └── default.rs
+        ├── models.rs     // data models
+        ├── state.rs      // application state management
+        ├── writer.rs     // background writer for batch processing
+        ├── background/   // background tasks and scheduler
+        │   ├── mod.rs
+        │   ├── scheduler.rs
+        │   ├── writer.rs
+        │   └── tasks/
+        │       ├── mod.rs
+        │       └── sweeper.rs
+        ├── auth.rs       // authentication logic
+        ├── error.rs      // error handling
+        └── routes/
+            ├── mod.rs        // route module definitions
+            ├── execution.rs  // execution REST API
+            ├── result.rs     // test result REST API
+            └── stream.rs     // streaming API
+    └── tests/
+        ├── test_config.toml     // test configuration
+        ├── common/
+        │   ├── test_config.rs   // test configuration loader
+        │   └── helper.rs        // test helper functions
+        ├── execution_api_test.rs  // integration tests
+        ├── result_api_test.rs     // result API integration tests
+        └── stream_api_test.rs     // stream API integration tests
+    ```
+
+- Configuration
+
+    ```toml
+    [server]
+    host = "127.0.0.1"
+    port = 3000
+
+    [database]
+    # set up the sqlite dababase
+    url = "sqlite:file:memdb1?mode=memory&cache=shared"
+    # set up the max connection
+    max_connections = 5
+    # whether enable wal or not
+    wal = true
+    # a threshold value (number of pages) that SQLite automatically tries to checkpoint the WAL file back into the main database. 1 page is about 4kb 
+    wal_autocheckpoint = 1000
+
+    # The configuration for batch writer.
+    # In order to improve performance, cleopatra maintains a background job which is dedicated to flush test results to SQLite. 
+    [writers.main]
+    # Number of items to process in a single batch before sending/committing
+    batch_size = 100
+    #  Maximum time in milliseconds to wait before flushing data to SQLite, even if batch_size is not reached
+    flush_interval_ms = 500
+
+    # Support JWT
+    [auth]
+    enabled = false
+    secret_path = "public.pem"
+    algorithm = "RS256"
+
+    # Clean data in SQLite periodically
+    [data_retention.main]
+    enabled = true
+    period_in_day = 90
+    cron = "0 0 3 * * Sun"
+    ```
+
+- Local Dev
+
+    Edit [dev.toml](./config/dev.toml) if needed.
+
+    ```bash
+    cargo run
+    ```
 
 ## Database Design
 
