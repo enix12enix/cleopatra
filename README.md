@@ -160,10 +160,10 @@ We have two kind API.
 |----------|----------|----------|
 | [POST /api/execution](#post-apiexecution)  | create a execution | 201 |
 | [GET /api/executions](#get-apiexecutions) | get executions by criteria| 200 |
-| [GET /api/execution/{id}/result](#get-apiexecutionidtests)  | get all of tests by execution id, excluding log field | 200 |
+| [GET /api/execution/{id}/result](#get-apiexecutionidresults)  | get all of tests by execution id, excluding log field | 200 |
 | [POST /api/result](#post-apitest)  | publish a test result | 201 |
 | [GET /api/result](#get-apiresultid)  | get test result by id | 200 |
-| [PATCH /api/tests/{id}/status](#patch-apitestsidstatus)  | update test result status by id | 204 |
+| [PATCH /api/result/{id}/status](#patch-apiresultidstatus)  | update test result status by id | 204 |
 
 #### POST /api/execution
 
@@ -341,7 +341,7 @@ response
 }
 ```
 
-#### PATCH /api/tests/{id}/status
+#### PATCH /api/result/{id}/status
 
 Change status of test result
 
