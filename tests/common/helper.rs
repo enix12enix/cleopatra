@@ -3,7 +3,7 @@ use std::{collections::HashMap, thread};
 use std::time::Duration;
 use reqwest;
 use serde_json::Value;
-use cleopatra::models::{Execution, TestResult, CreateTestResultResponse, StreamResponse, ExecutionListResponse};
+use cleopatra::{models::{Execution, TestResult, CreateTestResultResponse, StreamResponse, ExecutionListResponse, SuggestResponse}};
 use anyhow::Result;
 
 /// Get test results for a given execution ID by calling the API
@@ -226,6 +226,29 @@ pub async fn update_test_result(result_id: i64, status: String) -> Result<()> {
     let status = response.status();
     if status.is_success() {
         Ok(())
+    } else {
+        let error_text = response.text().await?;
+        anyhow::bail!("API request failed with status {}: {}", status, error_text)
+    }
+}
+
+/// Get suggested execution names by query by calling the API
+/// Returns a SuggestResponse, or None if no suggestions are found for short queries
+#[allow(dead_code)]
+pub async fn get_executions_suggest(query: &str) -> Result<Option<SuggestResponse>> {
+    let config = crate::common::test_config::get_config()?;
+    
+    let client = reqwest::Client::new();
+    let response = client
+        .get(&config.get_executions_suggest_api_url())
+        .query(&[("query", query)])
+        .send()
+        .await?;
+    
+    let status = response.status();
+    if status.is_success() {
+        let suggest_response: SuggestResponse = response.json().await?;
+        Ok(Some(suggest_response))
     } else {
         let error_text = response.text().await?;
         anyhow::bail!("API request failed with status {}: {}", status, error_text)

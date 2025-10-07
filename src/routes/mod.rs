@@ -9,9 +9,9 @@ mod stream;
 
 use crate::state::AppState;
 
-pub fn routes() -> Router<AppState> {
+pub fn routes(app_state: &AppState) -> Router<AppState> {
     Router::new()
-        .merge(execution::routes())
+        .merge(execution::routes(app_state))
         .merge(result::routes())
         .merge(stream::routes())
 }

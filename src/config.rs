@@ -13,6 +13,7 @@ pub struct Config {
     pub writers: HashMap<String, WriterConfig>,
     pub auth: AuthConfig,
     pub data_retention: HashMap<String, DataRetentionConfig>,
+    pub execution_suggest: ExecutionSuggestConfig,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -53,6 +54,34 @@ pub struct DataRetentionConfig {
     pub period_in_day: u32,
     #[serde(default = "default_maintenance_cron")]
     pub cron: String,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct ExecutionSuggestConfig {
+    #[serde(default = "default_execution_suggest_enabled")]
+    pub enabled: bool,
+    #[serde(default = "default_min_query_len")]
+    pub min_query_len: usize,
+    #[serde(default = "default_max_query_len")]
+    pub max_query_len: usize,
+    #[serde(default = "default_max_candidates")]
+    pub max_candidates: usize,
+}
+
+fn default_execution_suggest_enabled() -> bool {
+    true
+}
+
+fn default_min_query_len() -> usize {
+    2
+}
+
+fn default_max_query_len() -> usize {
+    32
+}
+
+fn default_max_candidates() -> usize {
+    5
 }
 
 fn default_wal() -> bool {

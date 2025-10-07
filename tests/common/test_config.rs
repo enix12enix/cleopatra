@@ -47,6 +47,10 @@ impl TestConfig {
     pub fn get_test_result_status_api_url(&self, result_id: i64) -> String {
         format!("{}/api/result/{}/status", self.api_base_url, result_id)
     }
+    
+    pub fn get_executions_suggest_api_url(&self) -> String {
+        format!("{}/api/executions/suggest", self.api_base_url)
+    }
 }
 
 pub fn get_config() -> Result<&'static TestConfig, anyhow::Error> {

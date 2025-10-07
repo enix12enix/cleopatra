@@ -22,3 +22,8 @@ enabled = true
 period_in_day = 90
 cron = "0 0 3 * * Sun"
 
+[execution_suggest]
+enabled = true
+min_query_len = 2
+max_query_len = 16
+max_candidates = 5

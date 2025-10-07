@@ -10,14 +10,21 @@ use axum::{
 };
 use std::collections::HashMap;
 
-use crate::models::{Execution, CreateExecution, ExecutionListResponse, ExecutionResultsResponse, TestResult, Summary};
+use crate::models::{Execution, CreateExecution, ExecutionListResponse, ExecutionResultsResponse, TestResult, Summary, SuggestedItem, SuggestQuery, SuggestResponse};
 use crate::state::AppState;
 
-pub fn routes() -> Router<AppState> {
-    Router::new()
+pub fn routes(app_state: &AppState) -> Router<AppState> {
+    let mut router = Router::new()
         .route("/api/execution", post(create_execution))
         .route("/api/executions", get(get_executions))
-        .route("/api/execution/:id/result", get(get_execution_results))
+        .route("/api/execution/:id/result", get(get_execution_results));
+
+    // Conditionally add the suggest route based on configuration
+    if app_state.config.execution_suggest.enabled {
+        router = router.route("/api/executions/suggest", get(get_suggested_executions));
+    }
+
+    router
 }
 
 async fn create_execution(
@@ -36,6 +43,16 @@ async fn create_execution(
     .fetch_one(&mut *conn)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    // Add the new execution name to the prefix trie for suggestions (if enabled)
+    if let Some(ref trie) = state.execution_prefix_trie {
+        let mut trie_write = trie.write();
+        let item = SuggestedItem {
+            id: execution.id.unwrap_or(0).to_string(),
+            name: execution.name.clone(),
+        };
+        trie_write.insert(&execution.name, item);
+    }
 
     Ok((StatusCode::CREATED, Json(execution)))
 }
@@ -195,3 +212,47 @@ async fn get_execution_results(
     Ok(Json(response))
 }
 
+
+async fn get_suggested_executions(
+    State(state): State<AppState>,
+    Query(params): Query<SuggestQuery>,
+) -> Result<Json<SuggestResponse>, (StatusCode, String)> {
+    // Check if execution suggestions are enabled
+    if !state.config.execution_suggest.enabled {
+        return Err((StatusCode::NOT_FOUND, "Execution suggestions are disabled".to_string()));
+    }
+
+    let query = params.query.unwrap_or_default();
+    
+    let min_query_len = state.config.execution_suggest.min_query_len;
+    let max_candidates = state.config.execution_suggest.max_candidates;
+    
+    // Limit the query length to reasonable size
+    if query.len() < min_query_len {
+        let response = SuggestResponse {
+            query,
+            suggestions: vec![],
+            limit: max_candidates,
+        };
+        return Ok(Json(response));
+    }
+    
+    // Get the prefix trie from the application state (it should exist since we checked enabled flag)
+    let trie = state.execution_prefix_trie.as_ref()
+        .ok_or((StatusCode::INTERNAL_SERVER_ERROR, "Execution prefix trie not initialized".to_string()))?;
+    let trie_read = trie.read();
+    let mut suggestions = trie_read.search(&query);
+    
+    // Truncate to max_candidates if necessary
+    if suggestions.len() > max_candidates {
+        suggestions.truncate(max_candidates);
+    }
+    
+    let response = SuggestResponse {
+        query,
+        suggestions,
+        limit: max_candidates,
+    };
+    
+    Ok(Json(response))
+}

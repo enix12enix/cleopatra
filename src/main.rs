@@ -13,6 +13,7 @@ mod background;
 mod state;
 mod auth;
 mod error;
+mod suggestion;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -26,7 +27,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Build app with routers and middleware
     let app = Router::new()
-        .merge(routes::routes())
+        .merge(routes::routes(&state_arc))
         .layer(axum::middleware::from_fn_with_state(
             Arc::clone(&state_arc),
             auth::jwt_auth_middleware, // expects State<Arc<AppState>>

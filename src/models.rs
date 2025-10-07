@@ -168,3 +168,22 @@ impl Status {
 pub struct UpdateStatusRequest {
     pub status: String,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct SuggestedItem {
+    pub id: String,
+    pub name: String,
+}
+
+#[derive(serde::Deserialize)]
+pub struct SuggestQuery {
+    pub query: Option<String>,
+}
+
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SuggestResponse {
+    pub query: String,
+    pub suggestions: Vec<SuggestedItem>,
+    pub limit: usize,
+}

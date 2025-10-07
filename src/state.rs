@@ -5,8 +5,9 @@ use std::sync::Arc;
 use sqlx::SqlitePool;
 use crate::auth::{self, AuthProvider};
 use crate::config::Config;
-use crate::{config, database};
+use crate::{config, database, suggestion};
 use crate::background::writer::{DefaultWriter, Writer, WriterManager, WriterName};
+
 
 #[derive(Clone)]
 pub struct AppState {
@@ -14,6 +15,7 @@ pub struct AppState {
     pub pool: SqlitePool,
     pub writer_manager: Arc<WriterManager>,
     pub auth_provider: Option<Arc<AuthProvider>>,
+    pub execution_prefix_trie: Option<Arc<parking_lot::RwLock<suggestion::ExecutionPrefixTrie>>>,
 }
 
 impl AppState {
@@ -44,10 +46,24 @@ pub async fn init_state() -> Result<AppState, Box<dyn std::error::Error>> {
         None
     };
 
+    // Conditionally initialize execution prefix trie based on configuration
+    let execution_prefix_trie = if config.execution_suggest.enabled {
+        let trie = suggestion::ExecutionPrefixTrie::build_from_executions(
+            &main_pool,
+            config.execution_suggest.min_query_len,
+            config.execution_suggest.max_query_len,
+            config.execution_suggest.max_candidates,
+        ).await?;
+        Some(Arc::new(parking_lot::RwLock::new(trie)))
+    } else {
+        None
+    };
+
     Ok(AppState { 
         config,
         pool: main_pool,
         writer_manager: Arc::new(writer_manager),
         auth_provider,
+        execution_prefix_trie,
     })
 }

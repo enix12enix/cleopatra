@@ -244,6 +244,7 @@ dependencies = [
  "fake",
  "futures",
  "jsonwebtoken",
+ "parking_lot",
  "reqwest",
  "serde",
  "serde_json",

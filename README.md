@@ -39,7 +39,7 @@ A lightweight Rust backend that forcus on ingestion and retrieval of automation 
         │   └── default.rs
         ├── models.rs     // data models
         ├── state.rs      // application state management
-        ├── writer.rs     // background writer for batch processing
+        ├── suggestion.rs // execution name suggestion functionality
         ├── background/   // background tasks and scheduler
         │   ├── mod.rs
         │   ├── scheduler.rs
@@ -100,6 +100,13 @@ A lightweight Rust backend that forcus on ingestion and retrieval of automation 
     enabled = true
     period_in_day = 90
     cron = "0 0 3 * * Sun"
+
+    # enable execution suggest api
+    [execution_suggest]
+    enabled = true
+    min_query_len = 2
+    max_query_len = 16
+    max_candidates = 5
     ```
 
 - Local Dev
@@ -164,6 +171,7 @@ We have two kind API.
 | [POST /api/result](#post-apitest)  | publish a test result | 201 |
 | [GET /api/result](#get-apiresultid)  | get test result by id | 200 |
 | [PATCH /api/result/{id}/status](#patch-apiresultidstatus)  | update test result status by id | 204 |
+| [GET /api/executions/suggest?query=alp](#get-apiexecutionssuggestqueryalp) | get suggessted exeuciton names | 200 |
 
 #### POST /api/execution
 
@@ -351,6 +359,57 @@ request
     "status": "P" // should be P/F/I
 }
 ```
+
+#### GET /api/executions/suggest?query=alp
+
+The api returns suggessted execution name by the value of query.
+
+Cleopatra maintains prefix hashmap in the memory which this api search execution names from it.
+
+When cleopatra starts up, it queries execution table to build the prefix hashmap.
+
+When creating execution, cleopatra updates the prefix hashmap.
+
+Here are the enhancement for performance.
+
+- Limiting Prefix Depth: Only store prefixes with a length ≥ 2 (reducing data by 50%).
+
+- Limit the maximum prefix length (for example, to no more than 15).
+
+- Limiting the Number of Candidates: 5
+
+Response
+```json
+{
+  "query": "alp",
+  "suggestions": [
+    {
+      "id": "e7a9c1f2",
+      "name": "alpha"
+    },
+    {
+      "id": "b3f4d8e1",
+      "name": "alpine"
+    },
+    {
+      "id": "c9d2a5b7",
+      "name": "alpaca"
+    },
+    {
+      "id": "f2a1b9d3",
+      "name": "alphabet"
+    },
+    {
+      "id": "a6d8c3e4",
+      "name": "alps"
+    }
+  ],
+  "limit": 5
+}
+
+```
+
+
 
 ###  Html Stream API
 
