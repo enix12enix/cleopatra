@@ -241,6 +241,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "axum",
+ "crossbeam-queue",
  "fake",
  "futures",
  "jsonwebtoken",

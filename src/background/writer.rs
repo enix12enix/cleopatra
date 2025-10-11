@@ -1,24 +1,30 @@
-// src/writer.rs
+// src/background/writer.rs
 use async_trait::async_trait;
 use sqlx::{Acquire, Pool, Sqlite, Transaction};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::mpsc::{Receiver, Sender, channel};
-use tokio::time::{Duration, sleep};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Duration;
+use tokio::sync::mpsc::{channel, Receiver, Sender};
+use tokio::time::{sleep, Instant};
+
+use crossbeam_queue::ArrayQueue;
 
 use crate::config::Config;
 use crate::database::upsert_test_result;
 use crate::models::CreateTestResult;
 
+// the interface for writer
 #[async_trait]
 pub trait Writer: Send + Sync + 'static {
-    type Message: Send + 'static;
+    type Message: Send + Sync + Clone + 'static;
     type Datasource: Clone + Send + Sync + 'static;
     type Error: std::fmt::Display + Send + 'static;
 
     fn sender(&self) -> &Sender<Self::Message>;
     fn config_name() -> &'static str;
 
+    #[allow(dead_code)]
     async fn flush_db(
         &self,
         ds: &Self::Datasource,
@@ -42,54 +48,7 @@ pub trait Writer: Send + Sync + 'static {
     }
 }
 
-/// --- Start the writer loop
-pub async fn start_writer_loop<W>(
-    writer: Arc<W>,
-    mut rx: Receiver<W::Message>,
-    datasource: W::Datasource,
-    batch_size: usize,
-    flush_interval_ms: u64,
-) where
-    W: Writer + 'static,
-{
-    tokio::spawn(async move {
-        let flush_interval = Duration::from_millis(flush_interval_ms);
-        let mut buffer = Vec::with_capacity(batch_size);
-
-        loop {
-            tokio::select! {
-                maybe_item = rx.recv() => {
-                    match maybe_item {
-                        Some(item) => {
-                            buffer.push(item);
-                            if buffer.len() >= batch_size {
-                                if let Err(e) = writer.flush_db(&datasource, &buffer).await {
-                                    eprintln!("Error flushing: {}", e);
-                                }
-                                buffer.clear();
-                            }
-                        }
-                        None => {
-                            if !buffer.is_empty() {
-                                let _ = writer.flush_db(&datasource, &buffer).await;
-                            }
-                            println!("Writer shutdown complete");
-                            break;
-                        }
-                    }
-                }
-                _ = sleep(flush_interval), if !buffer.is_empty() => {
-                    if let Err(e) = writer.flush_db(&datasource, &buffer).await {
-                        eprintln!("Error flushing: {}", e);
-                    }
-                    buffer.clear();
-                }
-            }
-        }
-    });
-}
-
-/// --- DefaultWriter for SQLite ---
+/// --- DefaultWriter for SQLite (dispatcher + lock-free ring buffer)
 #[derive(Clone)]
 pub struct DefaultWriter {
     sender: Sender<CreateTestResult>,
@@ -115,51 +74,132 @@ impl Writer for DefaultWriter {
             .get(Self::config_name())
             .expect("Writer config not found");
 
-        let (tx, rx) = channel(writer_config.batch_size);
-        let writer = Arc::new(Self { sender: tx.clone() });
+        let batch_size = writer_config.batch_size;
+        let flush_interval_ms = writer_config.flush_interval_ms;
+        let queue_capacity = (batch_size * 16).max(1024);
 
-        start_writer_loop(
-            writer.clone(),
-            rx,
-            ds.clone(),
-            writer_config.batch_size,
-            writer_config.flush_interval_ms,
-        )
-        .await;
+        let (tx, mut rx): (Sender<CreateTestResult>, Receiver<CreateTestResult>) =
+            channel(writer_config.batch_size * 8);
 
-        Arc::try_unwrap(writer).unwrap_or_else(|arc| (*arc).clone())
+        let queue = Arc::new(ArrayQueue::<CreateTestResult>::new(queue_capacity));
+        let closed = Arc::new(AtomicBool::new(false));
+        let ds_clone_for_writer = ds.clone();
+
+        // Dispatcher task: channel -> queue
+        {
+            let queue = Arc::clone(&queue);
+            let closed = Arc::clone(&closed);
+            tokio::spawn(async move {
+                while let Some(item) = rx.recv().await {
+                    loop {
+                        match queue.push(item.clone()) {
+                            Ok(()) => break,
+                            Err(_) => {
+                                tokio::task::yield_now().await;
+                            }
+                        }
+                    }
+                }
+                closed.store(true, Ordering::SeqCst);
+            });
+        }
+
+        // Writer task: queue -> db
+        {
+            let queue = Arc::clone(&queue);
+            let closed = Arc::clone(&closed);
+            let batch_size = batch_size;
+            let flush_interval = Duration::from_millis(flush_interval_ms);
+
+            tokio::spawn(async move {
+                let mut buffer: Vec<CreateTestResult> = Vec::with_capacity(batch_size);
+                let mut last_flush = Instant::now();
+
+                loop {
+                    // read message from queue and add it to buffer
+                    while buffer.len() < batch_size {
+                        match queue.pop() {
+                            Some(item) => buffer.push(item),
+                            None => break,
+                        }
+                    }
+
+                    let now = Instant::now();
+                    let time_elapsed = now.duration_since(last_flush);
+
+                    // flush data
+                    if !buffer.is_empty() && (buffer.len() >= batch_size || time_elapsed >= flush_interval) {
+                        if let Err(e) = flush_to_sqlite(&ds_clone_for_writer, &buffer).await {
+                            eprintln!("Error flushing to sqlite: {}", e);
+                        } else {
+                            buffer.clear();
+                            last_flush = Instant::now();
+                        }
+                    }
+
+                    // exit if queue is closed and data is cleared
+                    if closed.load(Ordering::SeqCst) {
+                        while let Some(item) = queue.pop() {
+                            buffer.push(item);
+                            if buffer.len() >= batch_size {
+                                if let Err(e) = flush_to_sqlite(&ds_clone_for_writer, &buffer).await {
+                                    eprintln!("Error flushing to sqlite at shutdown: {}", e);
+                                }
+                                buffer.clear();
+                            }
+                        }
+
+                        if !buffer.is_empty() {
+                            if let Err(e) = flush_to_sqlite(&ds_clone_for_writer, &buffer).await {
+                                eprintln!("Error flushing to sqlite at shutdown: {}", e);
+                            }
+                            buffer.clear();
+                        }
+
+                        break;
+                    }
+
+                    // avoid busy loop
+                    sleep(Duration::from_millis(10)).await;
+                }
+
+                println!("DefaultWriter writer task exiting cleanly");
+            });
+        }
+
+        Self { sender: tx }
     }
 
-    /// --- Transactional flush
     async fn flush_db(
         &self,
         ds: &Self::Datasource,
         buffer: &[Self::Message],
     ) -> Result<(), Self::Error> {
-        if buffer.is_empty() {
-            return Ok(());
-        }
-
-        println!("flush data to db :: {}", buffer.len());
-
-        // Acquire a connection from the pool
-        let mut conn = ds.acquire().await?;
-
-        // Start a transaction
-        let mut tx: Transaction<'_, Sqlite> = conn.begin().await?;
-
-        // Execute all upserts inside this transaction
-        for item in buffer {
-            upsert_test_result(&mut tx, item).await?;
-        }
-
-        // Commit transaction
-        tx.commit().await?;
-
-        Ok(())
+        flush_to_sqlite(ds, buffer).await
     }
 }
 
+async fn flush_to_sqlite(
+    ds: &Pool<Sqlite>,
+    buffer: &[CreateTestResult],
+) -> Result<(), sqlx::Error> {
+    if buffer.is_empty() {
+        return Ok(());
+    }
+
+    let mut conn = ds.acquire().await?;
+    let mut tx: Transaction<'_, Sqlite> = conn.begin().await?;
+
+    for item in buffer {
+        upsert_test_result(&mut tx, item).await?;
+    }
+
+    tx.commit().await?;
+    println!("flush data to db :: {}", buffer.len());
+    Ok(())
+}
+
+/// --- Writer Manager
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum WriterName {
     Main,
