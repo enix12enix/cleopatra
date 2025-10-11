@@ -77,15 +77,15 @@ async fn get_executions(
     }
     
     if let Some(name) = params.get("name") {
-        query.push_str(" AND name LIKE ?");
-        count_query.push_str(" AND name LIKE ?");
-        bindings.push(format!("%{}%", name));
+        query.push_str(" AND name = ?");
+        count_query.push_str(" AND name = ?");
+        bindings.push(name.clone());
     }
     
     if let Some(tag) = params.get("tag") {
-        query.push_str(" AND tag = ?");
-        count_query.push_str(" AND tag = ?");
-        bindings.push(tag.clone());
+        query.push_str(" AND tag LIKE ?");
+        count_query.push_str(" AND tag LIKE ?");
+        bindings.push(format!("{}%", tag));
     }
     
     // Add ordering, limit and offset
