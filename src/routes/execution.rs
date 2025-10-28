@@ -77,9 +77,9 @@ async fn get_executions(
     }
     
     if let Some(name) = params.get("name") {
-        query.push_str(" AND name = ?");
-        count_query.push_str(" AND name = ?");
-        bindings.push(name.clone());
+        query.push_str(" AND name Like ?");
+        count_query.push_str(" AND name LIKE ?");
+        bindings.push(format!("{}%", name));
     }
     
     if let Some(tag) = params.get("tag") {

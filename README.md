@@ -204,7 +204,7 @@ get executions by criteria
 | parameter           | type     | comment                |
 | ------------ | ------ | ----------------- |
 | `created_by` | string | filter by created_by, do not support fuzzy matching           |
-| `name`       | string | filter by name, do not support fuzzy matching   |
+| `name`       | string | filter by name, support fuzzy matching   |
 | `tag`        | string | filter by tag, support fuzzy matching             |
 | `limit`      | int    | the count per page，default is 20, max is 100             |
 | `offset`     | int    | pagination offset, default 0     |

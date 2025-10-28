@@ -32,3 +32,4 @@ CREATE TABLE IF NOT EXISTS test_result (
 
 -- Indexes for common queries
 CREATE INDEX IF NOT EXISTS idx_test_result_execution_id ON test_result (execution_id);
+CREATE INDEX IF NOT EXISTS idx_execution_name ON execution (name);
